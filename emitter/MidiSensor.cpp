@@ -1,4 +1,4 @@
-#include "Sensor.h"
+#include "MidiSensor.h"
 #include "MPU6050.h"
 #include "Adafruit_VL53L0X.h"
 #include <math.h>
@@ -18,14 +18,14 @@ static std::map<uint8_t, uint8_t> imuFilterResolution = {
   { 6, 5 },
 };
 
-uint16_t Sensor::getDebounceThreshold(std::string &type) {
+uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
     { "force", 30 },
   };
   return debounceThresholdValues[type];
 }
 
-Sensor::Sensor(const SensorConfig &config) {
+MidiSensor::MidiSensor(const SensorConfig &config) {
   sensorType = config.sensorType;
   controllerNumber = config.controllerNumber;
   pin = config.pin;
@@ -48,7 +48,7 @@ Sensor::Sensor(const SensorConfig &config) {
   toggleStatus = false;
   previousToggleStatus = toggleStatus;
   isAlreadyPressed = false;
-  _debounceThreshold = Sensor::getDebounceThreshold(sensorType);
+  _debounceThreshold = MidiSensor::getDebounceThreshold(sensorType);
   currentDebounceTimer = 0;
   previousDebounceTimer = 0;
   currentSwitchState = false;
@@ -59,57 +59,57 @@ Sensor::Sensor(const SensorConfig &config) {
   lsb = 0;
 }
 
-bool Sensor::isAboveThreshold() {
+bool MidiSensor::isAboveThreshold() {
   return this->measuresCounter % this->_threshold == 0;
 };
 
-void Sensor::setCurrentValue(uint8_t value) {
+void MidiSensor::setCurrentValue(uint8_t value) {
   this->currentValue = value;
 }
 
-void Sensor::setThreshold(uint8_t value) {
+void MidiSensor::setThreshold(uint8_t value) {
   this->_threshold = value;
 }
 
-void Sensor::setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings) {
+void MidiSensor::setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings) {
   if (this->sensorType == "ax" || this->sensorType == "ay") {
     this->_threshold = imuFilterResolution[amountOfActiveSiblings];
   }
 }
 
-void Sensor::setMidiMessage(std::string value) {
+void MidiSensor::setMidiMessage(std::string value) {
   this->_midiMessage = value;
 }
 
-void Sensor::setPreviousValue(uint8_t value) {
+void MidiSensor::setPreviousValue(uint8_t value) {
   this->previousValue = value;
 }
 
-void Sensor::setPreviousRawValue(int16_t value) {
+void MidiSensor::setPreviousRawValue(int16_t value) {
   this->previousRawValue = value;
 }
 
-void Sensor::setMidiChannel(uint8_t channel) {
+void MidiSensor::setMidiChannel(uint8_t channel) {
   this->_channel = channel;
 }
 
-void Sensor::setCurrentDebounceValue(unsigned long timeValue) {
+void MidiSensor::setCurrentDebounceValue(unsigned long timeValue) {
   this->_currentDebounceValue = timeValue;
 }
 
-void Sensor::setMeasuresCounter(uint8_t value) {
+void MidiSensor::setMeasuresCounter(uint8_t value) {
   this->measuresCounter = !value ? value : this->measuresCounter + value;
 }
 
-void Sensor::setDataBuffer(int16_t value) {
+void MidiSensor::setDataBuffer(int16_t value) {
   this->dataBuffer = !value ? value : this->dataBuffer + value;
 }
 
-std::string Sensor::getSensorType() {
+std::string MidiSensor::getSensorType() {
   return this->sensorType;
 }
 
-bool Sensor::isSwitchActive() {
+bool MidiSensor::isSwitchActive() {
   const bool isSwitchActive = !!this->intPin ? !!digitalRead(this->intPin) : true;
   this->currentSwitchState = isSwitchActive;
   if (this->currentSwitchState != this->previousSwitchState) {
@@ -118,7 +118,7 @@ bool Sensor::isSwitchActive() {
   return isSwitchActive;
 }
 
-bool Sensor::isSwitchDebounced() {
+bool MidiSensor::isSwitchDebounced() {
   this->currentDebounceTimer = millis();
   if (sensorType == "ax" || sensorType == "ay") {
     if (!this->isDebounced) {
@@ -136,7 +136,7 @@ bool Sensor::isSwitchDebounced() {
   return true;
 }
 
-int16_t Sensor::getRawValue(Adafruit_VL53L0X *lox) {
+int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
 
   if (sensorType == "potentiometer" || sensorType == "force") {
     return analogRead(pin);
@@ -192,11 +192,11 @@ int16_t Sensor::getRawValue(Adafruit_VL53L0X *lox) {
 }
 
 
-int16_t Sensor::runNonBlockingAverageFilter() {
+int16_t MidiSensor::runNonBlockingAverageFilter() {
   return this->dataBuffer / this->_threshold;
 }
 
-int16_t Sensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap) {
+int16_t MidiSensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap) {
   int buffer = 0;
   for (int i = 0; i < measureSize; i++) {
     int16_t value = this->getRawValue(lox);
@@ -210,14 +210,14 @@ int16_t Sensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox,
   return result;
 }
 
-int16_t Sensor::runExponentialFilter(Adafruit_VL53L0X *lox) {
+int16_t MidiSensor::runExponentialFilter(Adafruit_VL53L0X *lox) {
   static const float alpha = 0.5;
   const int16_t rawValue = this->getRawValue(lox);
   const float filteredValue = rawValue * alpha + (1 - alpha) * rawValue;
   return int(filteredValue);
 }
 
-std::vector< uint8_t > Sensor::getValuesBetweenRanges(uint8_t gap) {
+std::vector< uint8_t > MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   uint8_t samples = 1;
   if (currentValue > previousValue) {
     samples = currentValue - previousValue;
@@ -239,7 +239,7 @@ std::vector< uint8_t > Sensor::getValuesBetweenRanges(uint8_t gap) {
   return steps;
 }
 
-int Sensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
+int MidiSensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
   if (floor && ceil) {
     return constrain(map(actualValue, floor, ceil, 0, 127), 0, 127);
   }
@@ -253,7 +253,7 @@ int Sensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
   return constrain(map(actualValue, _floor, _ceil, 0, 127), 0, 127);
 }
 
-void Sensor::debounce(Adafruit_VL53L0X *lox) {
+void MidiSensor::debounce(Adafruit_VL53L0X *lox) {
   if (sensorType == "force") {
     this->previousToggleStatus = this->toggleStatus;
     if (this->_currentDebounceValue - this->_previousDebounceValue >= _debounceThreshold) {
@@ -265,25 +265,25 @@ void Sensor::debounce(Adafruit_VL53L0X *lox) {
   }
 }
 
-bool Sensor::isSibling(const std::vector<std::string> &SIBLINGS) {
+bool MidiSensor::isSibling(const std::vector<std::string> &SIBLINGS) {
   const std::vector<std::string>::const_iterator it = std::find(SIBLINGS.begin(), SIBLINGS.end(), this->sensorType);
   return it != SIBLINGS.end();
 }
 
-void Sensor::sendSerialMidiMessage(HardwareSerial *Serial5) {
+void MidiSensor::sendSerialMidiMessage(HardwareSerial *Serial5) {
   if (this->_midiMessage == "controlChange" && this->currentValue != this->previousValue) {
-    Sensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, this->currentValue, Serial5);
+    MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, this->currentValue, Serial5);
   }
   if (this->_midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
     if (this->toggleStatus) {
-      Sensor::writeSerialMidiMessage(144, 60, 127, Serial5);
+      MidiSensor::writeSerialMidiMessage(144, 60, 127, Serial5);
     } else {
-      Sensor::writeSerialMidiMessage(128, 60, 127, Serial5);
+      MidiSensor::writeSerialMidiMessage(128, 60, 127, Serial5);
     }
   }
 }
 
-void Sensor::run(Adafruit_VL53L0X *lox) {
+void MidiSensor::run(Adafruit_VL53L0X *lox) {
   int16_t rawValue = this->getRawValue(lox);
   this->setPreviousRawValue(rawValue);
   this->setDataBuffer(rawValue);
@@ -305,7 +305,7 @@ void Sensor::run(Adafruit_VL53L0X *lox) {
 /**
   * TODO: Test for ESP32 device.
   **/
-// void Sensor::sendBleMidiMessage(BLEMidiServerClass *serverInstance) {
+// void MidiSensor::sendBleMidiMessage(BLEMidiServerClass *serverInstance) {
 //   if (this->_midiMessage == "controlChange") {
 //     if (this->currentValue != this->previousValue) {
 //       serverInstance->controlChange(_channel, controllerNumber, char(this->currentValue));

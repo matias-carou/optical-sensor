@@ -22,7 +22,7 @@ struct SensorConfig {
   int amountOfReads;
 };
 
-class Sensor {
+class MidiSensor {
 private:
   uint8_t controllerNumber;
   char _channel;
@@ -50,7 +50,7 @@ private:
   uint8_t counter = 0;
 public:
   /**
-     * @brief Constructs a Sensor object.
+     * @brief Constructs a MidiSensor object.
      * 
      * @param sensorType The type of sensor.
      * @param controllerNumber The controller number.
@@ -64,7 +64,7 @@ public:
   // const int amountOfReads = pin["amountOfReads"];
   // const int floorThreshold = pin["floorThreshold"];
   // const int ceilThreshold = pin["ceilThreshold"];
-  Sensor(const SensorConfig &config);
+  MidiSensor(const SensorConfig &config);
   std::string sensorType;
   std::string _midiMessage;
   uint8_t filteredExponentialValue;
@@ -99,8 +99,8 @@ public:
   void run(Adafruit_VL53L0X *lox);
   std::string getSensorType();
 
-  static void setUpSensorPins(std::vector<Sensor *> SENSORS) {
-    for (Sensor *SENSOR : SENSORS) {
+  static void setUpSensorPins(std::vector<MidiSensor *> SENSORS) {
+    for (MidiSensor *SENSOR : SENSORS) {
       if (!!SENSOR->pin) {
         pinMode(SENSOR->pin, INPUT);
       }
@@ -128,7 +128,7 @@ public:
     }
   }
 
-  static std::vector<Sensor *>
+  static std::vector<MidiSensor *>
   initializeSensors(const char *configJson) {
 
     JsonDocument doc;
@@ -139,7 +139,7 @@ public:
       doc.clear();
     }
 
-    std::vector<Sensor *> sensors;
+    std::vector<MidiSensor *> sensors;
 
     JsonArray pinsArray = doc["sensors"].as<JsonArray>();
 
@@ -157,9 +157,9 @@ public:
       delay(1);
     }
 
-    const std::vector<std::string> validSensors = Sensor::getSupportedSensors();
+    const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
 
-    // const std::map<std::string, HardwareSerial *> = Sensor::getSupportedSerialPorts()
+    // const std::map<std::string, HardwareSerial *> = MidiSensor::getSupportedSerialPorts()
 
     for (JsonObject pinObj : pinsArray) {
       const std::string sensorType = pinObj["sensorType"];
@@ -190,7 +190,7 @@ public:
         amountOfReads,
       };
 
-      Sensor *sensor = new Sensor(config);
+      MidiSensor *sensor = new MidiSensor(config);
 
       sensors.push_back(sensor);
     }
@@ -198,13 +198,13 @@ public:
     return sensors;
   }
 
-  static Sensor *getSensorBySensorType(std::vector<Sensor *> SENSORS, std::string sensorType) {
-    for (Sensor *SENSOR : SENSORS) {
+  static MidiSensor *getSensorBySensorType(std::vector<MidiSensor *> SENSORS, std::string sensorType) {
+    for (MidiSensor *SENSOR : SENSORS) {
       if (SENSOR->sensorType == sensorType) {
         return SENSOR;
       }
     }
-    const std::string errorMessage = "Sensor " + sensorType + " not found";
+    const std::string errorMessage = "MidiSensor " + sensorType + " not found";
     Serial.println(errorMessage.c_str());
   }
 
@@ -217,14 +217,14 @@ public:
     return toggleStatus;
   }
 
-  static void setInfraredSensorStates(Sensor *infraredSensor, bool &pitchBendLedState, int16_t thresholdValue, std::string midiMessage, bool newLedState, const uint8_t &PITCH_BEND_LED) {
+  static void setInfraredSensorStates(MidiSensor *infraredSensor, bool &pitchBendLedState, int16_t thresholdValue, std::string midiMessage, bool newLedState, const uint8_t &PITCH_BEND_LED) {
     pitchBendLedState = newLedState;
     digitalWrite(PITCH_BEND_LED, pitchBendLedState);
     infraredSensor->setThreshold(thresholdValue);
     infraredSensor->setMidiMessage(midiMessage);
   }
 
-  static void runPitchBendLogic(Sensor *infraredSensor, const bool &isBendActive, bool &pitchBendLedState, const uint8_t &PITCH_BEND_LED) {
+  static void runPitchBendLogic(MidiSensor *infraredSensor, const bool &isBendActive, bool &pitchBendLedState, const uint8_t &PITCH_BEND_LED) {
     if (isBendActive && !pitchBendLedState) {
       setInfraredSensorStates(infraredSensor, pitchBendLedState, 2, "pitchBend", true, PITCH_BEND_LED);
     }
@@ -252,29 +252,29 @@ public:
     delay(100);
   }
 
-  static bool is_active(Sensor *SENSOR, std::vector<std::string> listOfCandidates) {
+  static bool is_active(MidiSensor *SENSOR, std::vector<std::string> listOfCandidates) {
     if (std::find(listOfCandidates.begin(), listOfCandidates.end(), SENSOR->sensorType) != listOfCandidates.end()) {
       return SENSOR->isSwitchActive();
     }
     return false;
   }
 
-  static uint8_t getActiveSiblings(std::vector<Sensor *> SENSORS, std::vector<std::string> candidates) {
-    const uint8_t activeSiblings = std::count_if(SENSORS.begin(), SENSORS.end(), [&](Sensor *s) {
+  static uint8_t getActiveSiblings(std::vector<MidiSensor *> SENSORS, std::vector<std::string> candidates) {
+    const uint8_t activeSiblings = std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) {
       return is_active(s, candidates);
     });
     return activeSiblings;
   }
 
-  static bool is_debounced(Sensor *SENSOR, std::vector<std::string> listOfCandidates) {
+  static bool is_debounced(MidiSensor *SENSOR, std::vector<std::string> listOfCandidates) {
     if (std::find(listOfCandidates.begin(), listOfCandidates.end(), SENSOR->sensorType) != listOfCandidates.end()) {
       return SENSOR->isSwitchDebounced();
     }
     return false;
   }
 
-  static uint8_t areAllSiblingsDebounced(std::vector<Sensor *> SENSORS, std::vector<std::string> candidates) {
-    const uint8_t amountOfDebouncedSensors = std::count_if(SENSORS.begin(), SENSORS.end(), [&](Sensor *s) {
+  static uint8_t areAllSiblingsDebounced(std::vector<MidiSensor *> SENSORS, std::vector<std::string> candidates) {
+    const uint8_t amountOfDebouncedSensors = std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) {
       return is_debounced(s, candidates);
     });
     return candidates.size() == amountOfDebouncedSensors;
