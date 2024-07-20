@@ -1,15 +1,17 @@
 #ifndef Sensor_h
 #define Sensor_h
 #include <Arduino.h>
-#include "MPU6050.h"
-#include "Adafruit_VL53L0X.h"
-#include "Wire.h"
-#include <vector>
+#include <ArduinoJson.h>
+
+#include <algorithm>
 #include <map>
 #include <string>
+#include <vector>
+
+#include "Adafruit_VL53L0X.h"
+#include "MPU6050.h"
 #include "Utils.h"
-#include <algorithm>
-#include <ArduinoJson.h>
+#include "Wire.h"
 
 struct SensorConfig {
   std::string sensorType;
@@ -23,7 +25,7 @@ struct SensorConfig {
 };
 
 class MidiSensor {
-private:
+ private:
   uint8_t controllerNumber;
   char _channel;
   uint8_t _statusCode;
@@ -48,22 +50,20 @@ private:
   uint8_t msb = 0;
   uint8_t lsb = 0;
   uint8_t counter = 0;
-public:
+
+ public:
   /**
-     * @brief Constructs a MidiSensor object.
-     * 
-     * @param sensorType The type of sensor.
-     * @param controllerNumber The controller number.
-     * @param pin The analog/digital input pin, basically the sensor raw value.
-     * @param intPin The on/off switch to initialize the sensor.
-     * @param floorThreshold The reading floor for the sensor.
-     * @param ceilThreshold The reading ceil for the sensor.
-     * @param messageType The type of MIDI message.
-     * @param amountOfReads
-     */
-  // const int amountOfReads = pin["amountOfReads"];
-  // const int floorThreshold = pin["floorThreshold"];
-  // const int ceilThreshold = pin["ceilThreshold"];
+   * @brief Constructs a MidiSensor object.
+   *
+   * @param sensorType The type of sensor.
+   * @param controllerNumber The controller number.
+   * @param pin The analog/digital input pin, basically the sensor raw value.
+   * @param intPin The on/off switch to initialize the sensor.
+   * @param floorThreshold The reading floor for the sensor.
+   * @param ceilThreshold The reading ceil for the sensor.
+   * @param messageType The type of MIDI message.
+   * @param amountOfReads
+   */
   MidiSensor(const SensorConfig &config);
   std::string sensorType;
   std::string _midiMessage;
@@ -83,7 +83,7 @@ public:
   int16_t runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap = 500);
   int16_t runExponentialFilter(Adafruit_VL53L0X *lox);
   bool isSibling(const std::vector<std::string> &SIBLINGS);
-  std::vector< uint8_t > getValuesBetweenRanges(uint8_t gap = 1);
+  std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
   void setCurrentValue(uint8_t value);
   void setPreviousValue(uint8_t value);
@@ -111,26 +111,27 @@ public:
   }
 
   static std::vector<std::string> getSupportedSensors() {
-    return { "infrared", "potentiometer", "force", "sonar", "ax", "ay" };
+    return {"infrared", "potentiometer", "force", "sonar", "ax", "ay"};
   }
 
   static std::map<std::string, HardwareSerial *> getSupportedSerialPorts(const std::string microcontroller) {
     std::map<std::string, HardwareSerial *> ports;
 
     if (microcontroller == "teensy") {
-      ports.insert({ "Serial1", &Serial1 });
-      ports.insert({ "Serial2", &Serial2 });
-      ports.insert({ "Serial3", &Serial3 });
-      ports.insert({ "Serial4", &Serial4 });
-      ports.insert({ "Serial5", &Serial5 });
+      ports.insert({"Serial", (HardwareSerial *)&Serial});
+      ports.insert({"Serial1", &Serial1});
+      ports.insert({"Serial2", &Serial2});
+      ports.insert({"Serial3", &Serial3});
+      ports.insert({"Serial4", &Serial4});
+      ports.insert({"Serial5", &Serial5});
     } else {
       return std::map<std::string, HardwareSerial *>();
     }
+
+    return ports;
   }
 
-  static std::vector<MidiSensor *>
-  initializeSensors(const char *configJson) {
-
+  static std::vector<MidiSensor *> initializeSensors(const char *configJson) {
     JsonDocument doc;
 
     DeserializationError error = deserializeJson(doc, configJson);
@@ -141,25 +142,22 @@ public:
 
     std::vector<MidiSensor *> sensors;
 
-    JsonArray pinsArray = doc["sensors"].as<JsonArray>();
+    const JsonArray pinsArray = doc["sensors"].as<JsonArray>();
+    const JsonArray uartConfig = doc["uartConfig"].as<JsonArray>();
+    const std::string microcontroller = doc["microcontroller"];
 
-    const int hardwareSerialBaudRate = doc.containsKey("hardwareSerialBaudRate") ? doc["hardwareSerialBaudRate"] : 230400;
+    const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts(microcontroller);
 
-    if (hardwareSerialBaudRate) {
-      Serial.begin(hardwareSerialBaudRate);
-      std::string successMessage = "Successfully initialized hardware serial port with the speed: " + std::to_string(hardwareSerialBaudRate);
-
-      Serial.println(successMessage.c_str());
-    } else {
-      Serial.println("Failed to initialize the hardware serial port");
-      while (true)
-        ;
-      delay(1);
+    for (JsonObject uartObj : uartConfig) {
+      const std::string port = uartObj["port"];
+      const int baudRate = uartObj["baudRate"];
+      const auto it = supportedPorts.find(port);
+      if (it != supportedPorts.end()) {
+        it->second->begin(baudRate);
+      }
     }
 
     const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
-
-    // const std::map<std::string, HardwareSerial *> = MidiSensor::getSupportedSerialPorts()
 
     for (JsonObject pinObj : pinsArray) {
       const std::string sensorType = pinObj["sensorType"];
@@ -171,7 +169,8 @@ public:
       const int ceilThreshold = pinObj["ceilThreshold"];
       const std::string messageType = pinObj["messageType"];
 
-      const boolean isSensorNotSupported = std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
+      const boolean isSensorNotSupported =
+          std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
 
       if (isSensorNotSupported) {
         const std::string message = "sensor " + sensorType + " is not supported...";
@@ -180,14 +179,7 @@ public:
       }
 
       SensorConfig config = {
-        sensorType,
-        controllerNumber,
-        pin,
-        intPin,
-        floorThreshold,
-        ceilThreshold,
-        messageType,
-        amountOfReads,
+          sensorType, controllerNumber, pin, intPin, floorThreshold, ceilThreshold, messageType, amountOfReads,
       };
 
       MidiSensor *sensor = new MidiSensor(config);
@@ -208,7 +200,10 @@ public:
     Serial.println(errorMessage.c_str());
   }
 
-  static bool isPitchButtonActive(bool &currentButtonState, bool &lastButtonState, bool &toggleStatus, const uint8_t &PITCH_BEND_BUTTON) {
+  static bool isPitchButtonActive(bool &currentButtonState,
+                                  bool &lastButtonState,
+                                  bool &toggleStatus,
+                                  const uint8_t &PITCH_BEND_BUTTON) {
     currentButtonState = !!digitalRead(PITCH_BEND_BUTTON);
     if (currentButtonState && !lastButtonState) {
       toggleStatus = !toggleStatus ? true : false;
@@ -217,14 +212,22 @@ public:
     return toggleStatus;
   }
 
-  static void setInfraredSensorStates(MidiSensor *infraredSensor, bool &pitchBendLedState, int16_t thresholdValue, std::string midiMessage, bool newLedState, const uint8_t &PITCH_BEND_LED) {
+  static void setInfraredSensorStates(MidiSensor *infraredSensor,
+                                      bool &pitchBendLedState,
+                                      int16_t thresholdValue,
+                                      std::string midiMessage,
+                                      bool newLedState,
+                                      const uint8_t &PITCH_BEND_LED) {
     pitchBendLedState = newLedState;
     digitalWrite(PITCH_BEND_LED, pitchBendLedState);
     infraredSensor->setThreshold(thresholdValue);
     infraredSensor->setMidiMessage(midiMessage);
   }
 
-  static void runPitchBendLogic(MidiSensor *infraredSensor, const bool &isBendActive, bool &pitchBendLedState, const uint8_t &PITCH_BEND_LED) {
+  static void runPitchBendLogic(MidiSensor *infraredSensor,
+                                const bool &isBendActive,
+                                bool &pitchBendLedState,
+                                const uint8_t &PITCH_BEND_LED) {
     if (isBendActive && !pitchBendLedState) {
       setInfraredSensorStates(infraredSensor, pitchBendLedState, 2, "pitchBend", true, PITCH_BEND_LED);
     }
@@ -243,7 +246,10 @@ public:
     delay(100);
   }
 
-  static void testInfraredSensorConnection(Adafruit_VL53L0X &lox, uint8_t i2c_addr, const uint8_t &ERROR_LED, TwoWire *i2c = &Wire) {
+  static void testInfraredSensorConnection(Adafruit_VL53L0X &lox,
+                                           uint8_t i2c_addr,
+                                           const uint8_t &ERROR_LED,
+                                           TwoWire *i2c = &Wire) {
     if (!lox.begin(i2c_addr, false, &Wire)) {
       Serial.println("Failed to boot VL53L0X");
     } else {
@@ -260,9 +266,8 @@ public:
   }
 
   static uint8_t getActiveSiblings(std::vector<MidiSensor *> SENSORS, std::vector<std::string> candidates) {
-    const uint8_t activeSiblings = std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) {
-      return is_active(s, candidates);
-    });
+    const uint8_t activeSiblings =
+        std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) { return is_active(s, candidates); });
     return activeSiblings;
   }
 
@@ -274,32 +279,34 @@ public:
   }
 
   static uint8_t areAllSiblingsDebounced(std::vector<MidiSensor *> SENSORS, std::vector<std::string> candidates) {
-    const uint8_t amountOfDebouncedSensors = std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) {
-      return is_debounced(s, candidates);
-    });
+    const uint8_t amountOfDebouncedSensors =
+        std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) { return is_debounced(s, candidates); });
     return candidates.size() == amountOfDebouncedSensors;
   }
 
-  // static void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue, HardwareSerial *Serial2) {
-  //   static const byte rightGuillemet[] = { 0xC2, 0xBB };  //UTF-8 character for separating MIDI messages: 11000010, 10111011
-  //   Serial2->write(char(statusCode));
-  //   Serial2->write(char(controllerNumber));
+  // static void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue,
+  // HardwareSerial *Serial2) {
+  //   static const byte rightGuillemet[] = { 0xC2, 0xBB };  //UTF-8 character for separating MIDI messages: 11000010,
+  //   10111011 Serial2->write(char(statusCode)); Serial2->write(char(controllerNumber));
   //   Serial2->write(char(sensorValue));
   //   Serial2->write(rightGuillemet, sizeof(rightGuillemet));
   // }
 
   /**
-  * Check if this approach is noticeable faster than the one above
-  **/
-  static void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue, HardwareSerial *Serial5) {
+   * Check if this approach is noticeable faster than the one above
+   **/
+  static void writeSerialMidiMessage(uint8_t statusCode,
+                                     uint8_t controllerNumber,
+                                     uint8_t sensorValue,
+                                     HardwareSerial *Serial5) {
     Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
     uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
     Serial5->write(&statusCode, 1);
     Serial5->write(&controllerNumber, 1);
     Serial5->write(&sensorValue, 1);
-    Serial5->write(reinterpret_cast<uint8_t *>(&rightGuillemet), 2);  // reinterpret the uint16_t value as a byte array and send 2 bytes
+    Serial5->write(reinterpret_cast<uint8_t *>(&rightGuillemet),
+                   2);  // reinterpret the uint16_t value as a byte array and send 2 bytes
   }
 };
-
 
 #endif

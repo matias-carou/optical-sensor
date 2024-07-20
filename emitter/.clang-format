@@ -1,0 +1,6 @@
+BasedOnStyle: Google
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: true
+BreakBeforeTernaryOperators: false
+ColumnLimit: 120
+BinPackParameters: false
