@@ -6,3 +6,4 @@ ColumnLimit: 120
 BinPackParameters: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortFunctionsOnASingleLineInline: false
+Cpp11BracedListStyle: false

@@ -13,14 +13,15 @@ const char *CONFIG = R"(
   "sensors": [
     {
       "sensorType": "infrared",
-      "controllerNumber": 109,
-      "pin": 0,
-      "intPin": 0,
-      "floorThreshold": 50,
-      "ceilThreshold": 380,
       "messageType": "controlChange",
+      "controllerNumber": 109,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 0,
+      "floorThreshold": 40,
+      "ceilThreshold": 350,
       "filter": {
-        "filterType": "averageNonBlocking",
+        "filterType": "lowPassFilter",
         "amountOfReads": 2
       },
       "communicationType": "continous"
@@ -65,5 +66,5 @@ void loop() {
     }
     SENSOR->run(&lox);
   }
-  delay(1);
+  delayMicroseconds(500);
 }

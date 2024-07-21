@@ -10,12 +10,13 @@
 
 #include "Adafruit_VL53L0X.h"
 #include "MPU6050.h"
-// #include "Utils.h"
+#include "Utils.h"
 #include "Wire.h"
 
 struct SensorConfig {
   std::string sensorType;
   int controllerNumber;
+  int statusCode;
   int pin;
   int intPin;
   int floorThreshold;
@@ -34,7 +35,7 @@ class MidiSensor {
   std::string communicationType;
   uint8_t controllerNumber;
   char _channel;
-  uint8_t _statusCode;
+  uint8_t statusCode;
   uint8_t measuresCounter;
   bool isActive;
   bool toggleStatus;
@@ -80,6 +81,7 @@ class MidiSensor {
   int16_t previousRawValue;
   uint8_t currentValue;
   int16_t filteredValue;
+  float averageValue;
   bool isSwitchActive();
   bool isAboveThreshold();
   bool isSwitchDebounced();
@@ -87,7 +89,8 @@ class MidiSensor {
   int16_t getRawValue(Adafruit_VL53L0X *lox);
   int16_t runNonBlockingAverageFilter();
   int16_t runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap = 500);
-  int16_t runExponentialFilter(Adafruit_VL53L0X *lox, int16_t rawValue, const float alpha = 0.5f);
+  int16_t runExponentialFilter(int16_t rawValue, const float alpha = 0.5f);
+  int16_t runLowPassFilter(int16_t rawValue, const int N = 5);
   bool isSibling(const std::vector<std::string> &SIBLINGS);
   std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
@@ -118,19 +121,19 @@ class MidiSensor {
   }
 
   static std::vector<std::string> getSupportedSensors() {
-    return {"infrared", "potentiometer", "force", "sonar", "ax", "ay"};
+    return { "infrared", "potentiometer", "force", "sonar", "ax", "ay" };
   }
 
   static std::map<std::string, HardwareSerial *> getSupportedSerialPorts(const std::string microcontroller) {
     std::map<std::string, HardwareSerial *> ports;
 
     if (microcontroller == "teensy") {
-      ports.insert({"Serial", (HardwareSerial *)&Serial});
-      ports.insert({"Serial1", &Serial1});
-      ports.insert({"Serial2", &Serial2});
-      ports.insert({"Serial3", &Serial3});
-      ports.insert({"Serial4", &Serial4});
-      ports.insert({"Serial5", &Serial5});
+      ports.insert({ "Serial", (HardwareSerial *)&Serial });
+      ports.insert({ "Serial1", &Serial1 });
+      ports.insert({ "Serial2", &Serial2 });
+      ports.insert({ "Serial3", &Serial3 });
+      ports.insert({ "Serial4", &Serial4 });
+      ports.insert({ "Serial5", &Serial5 });
     } else {
       return std::map<std::string, HardwareSerial *>();
     }
@@ -181,7 +184,8 @@ class MidiSensor {
     for (JsonObject pinObj : pinsArray) {
       const std::string sensorType = pinObj["sensorType"];
       const int controllerNumber = pinObj["controllerNumber"];
-      const int pin = pinObj["pin"];
+      const int statusCode = pinObj["statusCode"];
+      const int pin = pinObj["inputPin"];
       const int intPin = pinObj["intPin"];
       const int amountOfReads = pinObj["filter"]["amountOfReads"];
       const std::string filterType = pinObj["filter"]["filterType"];
@@ -199,9 +203,9 @@ class MidiSensor {
         continue;
       }
 
-      SensorConfig config = {sensorType,        controllerNumber, pin,         intPin,
-                             floorThreshold,    ceilThreshold,    messageType, amountOfReads,
-                             communicationType, filterType,       midiBus};
+      SensorConfig config = { sensorType,    controllerNumber,  statusCode,    pin,
+                              intPin,        floorThreshold,    ceilThreshold, messageType,
+                              amountOfReads, communicationType, filterType,    midiBus };
 
       MidiSensor *sensor = new MidiSensor(config);
 
@@ -319,7 +323,7 @@ class MidiSensor {
    * Check if this approach is noticeable faster than the one above
    **/
   void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
-    // Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
+    Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
     uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
     this->midiBus->write(&statusCode, 1);
     this->midiBus->write(&controllerNumber, 1);

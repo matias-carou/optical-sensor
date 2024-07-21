@@ -13,12 +13,12 @@
 static const int IMU_BASE_FILTER_THRESHOLD = 35;
 
 static std::map<uint8_t, uint8_t> imuFilterResolution = {
-    {1, IMU_BASE_FILTER_THRESHOLD}, {2, 30}, {3, 25}, {4, 20}, {5, 15}, {6, 5},
+  { 1, IMU_BASE_FILTER_THRESHOLD }, { 2, 30 }, { 3, 25 }, { 4, 20 }, { 5, 15 }, { 6, 5 },
 };
 
 uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
-      {"force", 30},
+    { "force", 30 },
   };
   return debounceThresholdValues[type];
 }
@@ -36,13 +36,14 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   _threshold = config.amountOfReads ? config.amountOfReads : 1;
   _midiMessage = config.messageType;
   _channel = 0;
-  _statusCode = 176;
+  statusCode = config.statusCode;
   previousValue = 0;
   previousRawValue = 0;
   currentValue = 0;
   dataBuffer = 0;
   measuresCounter = 0;
   filteredExponentialValue = 0;
+  averageValue = 0;
   _currentDebounceValue = 0;
   _previousDebounceValue = 0;
   isActive = false;
@@ -142,6 +143,21 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
     return analogRead(pin);
   }
 
+  if (sensorType == "sonar") {
+    const uint32_t pulse = pulseIn(pin, HIGH);
+    const int16_t inches = pulse / 147;
+    return inches;
+  }
+
+  if (sensorType == "infrared") {
+    VL53L0X_RangingMeasurementData_t measure;
+
+    lox->rangingTest(&measure, false);
+
+    return measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2 ? measure.RangeMilliMeter :
+                                                                               this->previousRawValue;
+  }
+
   // if (sensorType == "ax") {
   //   const int16_t rawValue = accelgyro->getAccelerationX();
   //   return constrain(rawValue, 0, _ceil);
@@ -156,12 +172,6 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
   //   const int16_t rawValue = accelgyro->getAccelerationZ();
   //   return constrain(rawValue, 0, _ceil);
   // }
-
-  if (sensorType == "sonar") {
-    const uint32_t pulse = pulseIn(pin, HIGH);
-    const int16_t inches = pulse / 147;
-    return inches;
-  }
 
   // if (sensorType == "gx") {
   //   const int16_t rawValue = accelgyro->getRotationX();
@@ -178,20 +188,7 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
   //   return constrain(rawValue, 0, _ceil);
   // }
 
-  if (sensorType == "infrared") {
-    VL53L0X_RangingMeasurementData_t measure;
-
-    lox->rangingTest(&measure, false);
-
-    return measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2 ? measure.RangeMilliMeter :
-                                                                               this->previousRawValue;
-  }
-
   return 0;
-}
-
-int16_t MidiSensor::runNonBlockingAverageFilter() {
-  return this->dataBuffer / this->_threshold;
 }
 
 int16_t MidiSensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap) {
@@ -206,11 +203,6 @@ int16_t MidiSensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *
   }
   const int16_t result = buffer / measureSize;
   return result;
-}
-
-int16_t MidiSensor::runExponentialFilter(Adafruit_VL53L0X *lox, int16_t rawValue, float alpha) {
-  const auto value = rawValue * alpha + (1.0f - alpha) * this->previousValue;
-  return static_cast<int16_t>(value);
 }
 
 std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
@@ -273,9 +265,9 @@ void MidiSensor::writeContinousMessages() {
 
   int delta = (currentValue > previousValue) ? 1 : -1;
 
-  for (auto &step : steps) {
+  for (uint8_t &step : steps) {
     startValue += delta;
-    MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, startValue);
+    MidiSensor::writeSerialMidiMessage(this->statusCode, this->controllerNumber, startValue);
     step = startValue;
   }
 }
@@ -285,7 +277,7 @@ void MidiSensor::sendSerialMidiMessage() {
     if (communicationType == "continous") {
       this->writeContinousMessages();
     } else {
-      MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, this->currentValue);
+      MidiSensor::writeSerialMidiMessage(this->statusCode, this->controllerNumber, this->currentValue);
     }
   }
   if (this->_midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
@@ -297,6 +289,20 @@ void MidiSensor::sendSerialMidiMessage() {
   }
 }
 
+int16_t MidiSensor::runNonBlockingAverageFilter() {
+  return this->dataBuffer / this->_threshold;
+}
+
+int16_t MidiSensor::runExponentialFilter(int16_t rawValue, float alpha) {
+  const auto value = rawValue * alpha + (1.0f - alpha) * this->previousValue;
+  return static_cast<int16_t>(value);
+}
+
+int16_t MidiSensor::runLowPassFilter(int16_t rawValue, int N) {
+  this->averageValue += (rawValue - this->averageValue) / N;
+  return static_cast<int16_t>(std::round(this->averageValue));
+}
+
 void MidiSensor::run(Adafruit_VL53L0X *lox) {
   int16_t rawValue = this->getRawValue(lox);
   this->setPreviousRawValue(rawValue);
@@ -305,7 +311,7 @@ void MidiSensor::run(Adafruit_VL53L0X *lox) {
   const unsigned long currentDebounceValue = millis();
   this->setCurrentDebounceValue(currentDebounceValue);
   if (filterType == "exponential") {
-    const int16_t averageValue = this->runExponentialFilter(lox, rawValue, 0.8f);
+    const int16_t averageValue = this->runExponentialFilter(rawValue, 0.8f);
     const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
     this->setPreviousValue(this->currentValue);
     this->setCurrentValue(sensorMappedValue);
@@ -321,6 +327,12 @@ void MidiSensor::run(Adafruit_VL53L0X *lox) {
       this->setMeasuresCounter(0);
       this->setDataBuffer(0);
     }
+  } else if (filterType == "lowPassFilter") {
+    const float averageValue = this->runLowPassFilter(rawValue, 5);
+    const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+    this->setPreviousValue(this->currentValue);
+    this->setCurrentValue(sensorMappedValue);
+    this->sendSerialMidiMessage();
   } else {
     const std::string message = "Filter type \"" + filterType + "\" is not supported";
     Serial.println(message.c_str());
