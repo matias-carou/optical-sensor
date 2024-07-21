@@ -18,7 +18,7 @@ const char *CONFIG = R"(
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 0,
-      "floorThreshold": 40,
+      "floorThreshold": 30,
       "ceilThreshold": 350,
       "filter": {
         "filterType": "lowPassFilter",
