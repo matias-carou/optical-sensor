@@ -10,7 +10,7 @@
 
 #include "Adafruit_VL53L0X.h"
 #include "MPU6050.h"
-#include "Utils.h"
+// #include "Utils.h"
 #include "Wire.h"
 
 struct SensorConfig {
@@ -22,10 +22,16 @@ struct SensorConfig {
   int ceilThreshold;
   std::string messageType;
   int amountOfReads;
+  std::string communicationType;
+  std::string filterType;
+  HardwareSerial *midiBus;
 };
 
 class MidiSensor {
  private:
+  HardwareSerial *midiBus;
+  std::string filterType;
+  std::string communicationType;
   uint8_t controllerNumber;
   char _channel;
   uint8_t _statusCode;
@@ -81,7 +87,7 @@ class MidiSensor {
   int16_t getRawValue(Adafruit_VL53L0X *lox);
   int16_t runNonBlockingAverageFilter();
   int16_t runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap = 500);
-  int16_t runExponentialFilter(Adafruit_VL53L0X *lox);
+  int16_t runExponentialFilter(Adafruit_VL53L0X *lox, int16_t rawValue, const float alpha = 0.5f);
   bool isSibling(const std::vector<std::string> &SIBLINGS);
   std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
@@ -93,10 +99,11 @@ class MidiSensor {
   void setThreshold(uint8_t value);
   void setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings);
   void setMidiMessage(std::string value);
-  void sendSerialMidiMessage(HardwareSerial *Serial5);
+  void sendSerialMidiMessage();
   void setMidiChannel(uint8_t channel);
   void debounce(Adafruit_VL53L0X *lox);
   void run(Adafruit_VL53L0X *lox);
+  void writeContinousMessages();
   std::string getSensorType();
 
   static void setUpSensorPins(std::vector<MidiSensor *> SENSORS) {
@@ -137,7 +144,8 @@ class MidiSensor {
     DeserializationError error = deserializeJson(doc, configJson);
 
     if (error) {
-      doc.clear();
+      Serial.println("Failed to parse the JSON config...");
+      while (1);
     }
 
     std::vector<MidiSensor *> sensors;
@@ -148,13 +156,24 @@ class MidiSensor {
 
     const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts(microcontroller);
 
+    HardwareSerial *midiBus = nullptr;
+
     for (JsonObject uartObj : uartConfig) {
       const std::string port = uartObj["port"];
+      const std::string communicationPurpose = uartObj["communicationPurpose"];
       const int baudRate = uartObj["baudRate"];
       const auto it = supportedPorts.find(port);
       if (it != supportedPorts.end()) {
         it->second->begin(baudRate);
+        if (communicationPurpose == "midi") {
+          midiBus = it->second;
+        }
       }
+    }
+
+    if (!midiBus) {
+      Serial.println("No midi bus was configured for the instance...");
+      while (1);
     }
 
     const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
@@ -165,27 +184,31 @@ class MidiSensor {
       const int pin = pinObj["pin"];
       const int intPin = pinObj["intPin"];
       const int amountOfReads = pinObj["filter"]["amountOfReads"];
+      const std::string filterType = pinObj["filter"]["filterType"];
       const int floorThreshold = pinObj["floorThreshold"];
       const int ceilThreshold = pinObj["ceilThreshold"];
       const std::string messageType = pinObj["messageType"];
+      const std::string communicationType = pinObj["communicationType"];
 
       const boolean isSensorNotSupported =
           std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
 
       if (isSensorNotSupported) {
-        const std::string message = "sensor " + sensorType + " is not supported...";
+        const std::string message = "Skipping sensor " + sensorType + " since is not supported...";
         Serial.println(message.c_str());
         continue;
       }
 
-      SensorConfig config = {
-          sensorType, controllerNumber, pin, intPin, floorThreshold, ceilThreshold, messageType, amountOfReads,
-      };
+      SensorConfig config = {sensorType,        controllerNumber, pin,         intPin,
+                             floorThreshold,    ceilThreshold,    messageType, amountOfReads,
+                             communicationType, filterType,       midiBus};
 
       MidiSensor *sensor = new MidiSensor(config);
 
       sensors.push_back(sensor);
     }
+
+    MidiSensor::setUpSensorPins(sensors);
 
     return sensors;
   }
@@ -295,17 +318,14 @@ class MidiSensor {
   /**
    * Check if this approach is noticeable faster than the one above
    **/
-  static void writeSerialMidiMessage(uint8_t statusCode,
-                                     uint8_t controllerNumber,
-                                     uint8_t sensorValue,
-                                     HardwareSerial *Serial5) {
-    Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
+  void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
+    // Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
     uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
-    Serial5->write(&statusCode, 1);
-    Serial5->write(&controllerNumber, 1);
-    Serial5->write(&sensorValue, 1);
-    Serial5->write(reinterpret_cast<uint8_t *>(&rightGuillemet),
-                   2);  // reinterpret the uint16_t value as a byte array and send 2 bytes
+    this->midiBus->write(&statusCode, 1);
+    this->midiBus->write(&controllerNumber, 1);
+    this->midiBus->write(&sensorValue, 1);
+    this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet),
+                         2);  // reinterpret the uint16_t value as a byte array and send 2 bytes
   }
 };
 

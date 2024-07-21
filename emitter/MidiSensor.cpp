@@ -1,26 +1,24 @@
 #include "MidiSensor.h"
-#include "MPU6050.h"
-#include "Adafruit_VL53L0X.h"
+
 #include <math.h>
-#include <vector>
+
+#include <functional>
 #include <map>
 #include <string>
-#include <functional>
+#include <vector>
+
+#include "Adafruit_VL53L0X.h"
+#include "MPU6050.h"
 
 static const int IMU_BASE_FILTER_THRESHOLD = 35;
 
 static std::map<uint8_t, uint8_t> imuFilterResolution = {
-  { 1, IMU_BASE_FILTER_THRESHOLD },
-  { 2, 30 },
-  { 3, 25 },
-  { 4, 20 },
-  { 5, 15 },
-  { 6, 5 },
+    {1, IMU_BASE_FILTER_THRESHOLD}, {2, 30}, {3, 25}, {4, 20}, {5, 15}, {6, 5},
 };
 
 uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
-    { "force", 30 },
+      {"force", 30},
   };
   return debounceThresholdValues[type];
 }
@@ -29,10 +27,13 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   sensorType = config.sensorType;
   controllerNumber = config.controllerNumber;
   pin = config.pin;
+  midiBus = config.midiBus;
+  filterType = config.filterType;
+  communicationType = config.communicationType;
   intPin = config.intPin;
   _floor = config.floorThreshold;
   _ceil = config.ceilThreshold;
-  _threshold = config.amountOfReads;
+  _threshold = config.amountOfReads ? config.amountOfReads : 1;
   _midiMessage = config.messageType;
   _channel = 0;
   _statusCode = 176;
@@ -137,7 +138,6 @@ bool MidiSensor::isSwitchDebounced() {
 }
 
 int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
-
   if (sensorType == "potentiometer" || sensorType == "force") {
     return analogRead(pin);
   }
@@ -178,19 +178,17 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
   //   return constrain(rawValue, 0, _ceil);
   // }
 
-
   if (sensorType == "infrared") {
     VL53L0X_RangingMeasurementData_t measure;
 
     lox->rangingTest(&measure, false);
 
-    return measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2 ? measure.RangeMilliMeter : this->previousRawValue;
+    return measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2 ? measure.RangeMilliMeter :
+                                                                               this->previousRawValue;
   }
-
 
   return 0;
 }
-
 
 int16_t MidiSensor::runNonBlockingAverageFilter() {
   return this->dataBuffer / this->_threshold;
@@ -210,14 +208,12 @@ int16_t MidiSensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *
   return result;
 }
 
-int16_t MidiSensor::runExponentialFilter(Adafruit_VL53L0X *lox) {
-  static const float alpha = 0.5;
-  const int16_t rawValue = this->getRawValue(lox);
-  const float filteredValue = rawValue * alpha + (1 - alpha) * rawValue;
-  return int(filteredValue);
+int16_t MidiSensor::runExponentialFilter(Adafruit_VL53L0X *lox, int16_t rawValue, float alpha) {
+  const auto value = rawValue * alpha + (1.0f - alpha) * this->previousValue;
+  return static_cast<int16_t>(value);
 }
 
-std::vector< uint8_t > MidiSensor::getValuesBetweenRanges(uint8_t gap) {
+std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   uint8_t samples = 1;
   if (currentValue > previousValue) {
     samples = currentValue - previousValue;
@@ -225,7 +221,7 @@ std::vector< uint8_t > MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   if (currentValue < previousValue) {
     samples = previousValue - currentValue;
   }
-  std::vector< uint8_t > steps(samples / gap);
+  std::vector<uint8_t> steps(samples / gap);
   uint8_t startValue = previousValue;
   std::generate(steps.begin(), steps.end(), [&startValue, this, &gap]() {
     if (this->currentValue > this->previousValue) {
@@ -270,15 +266,33 @@ bool MidiSensor::isSibling(const std::vector<std::string> &SIBLINGS) {
   return it != SIBLINGS.end();
 }
 
-void MidiSensor::sendSerialMidiMessage(HardwareSerial *Serial5) {
+void MidiSensor::writeContinousMessages() {
+  uint8_t samples = std::abs(currentValue - previousValue);
+  std::vector<uint8_t> steps(samples);
+  uint8_t startValue = previousValue;
+
+  int delta = (currentValue > previousValue) ? 1 : -1;
+
+  for (auto &step : steps) {
+    startValue += delta;
+    MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, startValue);
+    step = startValue;
+  }
+}
+
+void MidiSensor::sendSerialMidiMessage() {
   if (this->_midiMessage == "controlChange" && this->currentValue != this->previousValue) {
-    MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, this->currentValue, Serial5);
+    if (communicationType == "continous") {
+      this->writeContinousMessages();
+    } else {
+      MidiSensor::writeSerialMidiMessage(this->_statusCode, this->controllerNumber, this->currentValue);
+    }
   }
   if (this->_midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
     if (this->toggleStatus) {
-      MidiSensor::writeSerialMidiMessage(144, 60, 127, Serial5);
+      MidiSensor::writeSerialMidiMessage(144, 60, 127);
     } else {
-      MidiSensor::writeSerialMidiMessage(128, 60, 127, Serial5);
+      MidiSensor::writeSerialMidiMessage(128, 60, 127);
     }
   }
 }
@@ -288,23 +302,34 @@ void MidiSensor::run(Adafruit_VL53L0X *lox) {
   this->setPreviousRawValue(rawValue);
   this->setDataBuffer(rawValue);
   this->setMeasuresCounter(1);
-  if (this->isAboveThreshold()) {
-    const unsigned long currentDebounceValue = millis();
-    this->setCurrentDebounceValue(currentDebounceValue);
-    const int16_t averageValue = this->runNonBlockingAverageFilter();
+  const unsigned long currentDebounceValue = millis();
+  this->setCurrentDebounceValue(currentDebounceValue);
+  if (filterType == "exponential") {
+    const int16_t averageValue = this->runExponentialFilter(lox, rawValue, 0.8f);
     const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
     this->setPreviousValue(this->currentValue);
     this->setCurrentValue(sensorMappedValue);
-    this->debounce(lox);
-    this->sendSerialMidiMessage(&Serial5);
-    this->setMeasuresCounter(0);
-    this->setDataBuffer(0);
+    this->sendSerialMidiMessage();
+  } else if (filterType == "averageNonBlocking") {
+    if (this->isAboveThreshold()) {
+      const int16_t averageValue = this->runNonBlockingAverageFilter();
+      const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+      this->setPreviousValue(this->currentValue);
+      this->setCurrentValue(sensorMappedValue);
+      this->debounce(lox);
+      this->sendSerialMidiMessage();
+      this->setMeasuresCounter(0);
+      this->setDataBuffer(0);
+    }
+  } else {
+    const std::string message = "Filter type \"" + filterType + "\" is not supported";
+    Serial.println(message.c_str());
   }
 }
 
 /**
-  * TODO: Test for ESP32 device.
-  **/
+ * TODO: Test for ESP32 device.
+ **/
 // void MidiSensor::sendBleMidiMessage(BLEMidiServerClass *serverInstance) {
 //   if (this->_midiMessage == "controlChange") {
 //     if (this->currentValue != this->previousValue) {
