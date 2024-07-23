@@ -25,13 +25,17 @@ struct SensorConfig {
   int amountOfReads;
   std::string communicationType;
   std::string filterType;
+  int weight;
   HardwareSerial *midiBus;
+  Adafruit_VL53L0X *infraredSensor;
 };
 
 class MidiSensor {
  private:
   HardwareSerial *midiBus;
+  Adafruit_VL53L0X *infraredSensor;
   std::string filterType;
+  int weight;
   std::string communicationType;
   uint8_t controllerNumber;
   char _channel;
@@ -86,11 +90,11 @@ class MidiSensor {
   bool isAboveThreshold();
   bool isSwitchDebounced();
   int getMappedMidiValue(int16_t actualValue, int floor = 0, int ceil = 0);
-  int16_t getRawValue(Adafruit_VL53L0X *lox);
+  int16_t getRawValue();
   int16_t runNonBlockingAverageFilter();
-  int16_t runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap = 500);
+  int16_t runBlockingAverageFilter(int measureSize, int gap = 500);
   int16_t runExponentialFilter(int16_t rawValue, const float alpha = 0.5f);
-  int16_t runLowPassFilter(int16_t rawValue, const int N = 5);
+  int16_t runLowPassFilter(int16_t rawValue);
   bool isSibling(const std::vector<std::string> &SIBLINGS);
   std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
@@ -104,8 +108,8 @@ class MidiSensor {
   void setMidiMessage(std::string value);
   void sendSerialMidiMessage();
   void setMidiChannel(uint8_t channel);
-  void debounce(Adafruit_VL53L0X *lox);
-  void run(Adafruit_VL53L0X *lox);
+  void debounce();
+  void run();
   void writeContinousMessages();
   std::string getSensorType();
 
@@ -181,21 +185,23 @@ class MidiSensor {
 
     const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
 
+    Adafruit_VL53L0X *infraredSensor = nullptr;
+
     for (JsonObject pinObj : pinsArray) {
       const std::string sensorType = pinObj["sensorType"];
       const int controllerNumber = pinObj["controllerNumber"];
       const int statusCode = pinObj["statusCode"];
       const int pin = pinObj["inputPin"];
       const int intPin = pinObj["intPin"];
-      const int amountOfReads = pinObj["filter"]["amountOfReads"];
-      const std::string filterType = pinObj["filter"]["filterType"];
       const int floorThreshold = pinObj["floorThreshold"];
       const int ceilThreshold = pinObj["ceilThreshold"];
       const std::string messageType = pinObj["messageType"];
       const std::string communicationType = pinObj["communicationType"];
+      const std::string filterType = pinObj["filter"]["filterType"];
+      const int amountOfReads = pinObj["filter"]["amountOfReads"];
+      const int weight = pinObj["filter"]["weight"];
 
-      const boolean isSensorNotSupported =
-          std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
+      const boolean isSensorNotSupported = std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
 
       if (isSensorNotSupported) {
         const std::string message = "Skipping sensor " + sensorType + " since is not supported...";
@@ -203,9 +209,23 @@ class MidiSensor {
         continue;
       }
 
-      SensorConfig config = { sensorType,    controllerNumber,  statusCode,    pin,
-                              intPin,        floorThreshold,    ceilThreshold, messageType,
-                              amountOfReads, communicationType, filterType,    midiBus };
+      if (sensorType == "infrared" && !infraredSensor) {
+        if (!weight) {
+          const std::string message =
+              "|| \"weight\" key missing for sensor type \"" + sensorType + "\", setting fallback value...";
+          Serial.println(message.c_str());
+        }
+        infraredSensor = new Adafruit_VL53L0X();
+        if (!infraredSensor->begin()) {
+          Serial.println(F("Failed to boot VL53L0X"));
+          while (1);
+        }
+      }
+
+      SensorConfig config = {
+        sensorType,  controllerNumber, statusCode,        pin,        intPin, floorThreshold, ceilThreshold,
+        messageType, amountOfReads,    communicationType, filterType, weight, midiBus,        infraredSensor
+      };
 
       MidiSensor *sensor = new MidiSensor(config);
 
@@ -273,18 +293,6 @@ class MidiSensor {
     delay(100);
   }
 
-  static void testInfraredSensorConnection(Adafruit_VL53L0X &lox,
-                                           uint8_t i2c_addr,
-                                           const uint8_t &ERROR_LED,
-                                           TwoWire *i2c = &Wire) {
-    if (!lox.begin(i2c_addr, false, &Wire)) {
-      Serial.println("Failed to boot VL53L0X");
-    } else {
-      Serial.println("Succesfully connected to VL53L0X!");
-    }
-    delay(100);
-  }
-
   static bool is_active(MidiSensor *SENSOR, std::vector<std::string> listOfCandidates) {
     if (std::find(listOfCandidates.begin(), listOfCandidates.end(), SENSOR->sensorType) != listOfCandidates.end()) {
       return SENSOR->isSwitchActive();
@@ -323,13 +331,12 @@ class MidiSensor {
    * Check if this approach is noticeable faster than the one above
    **/
   void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
-    Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
+    // Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
     uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
     this->midiBus->write(&statusCode, 1);
     this->midiBus->write(&controllerNumber, 1);
     this->midiBus->write(&sensorValue, 1);
-    this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet),
-                         2);  // reinterpret the uint16_t value as a byte array and send 2 bytes
+    this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet), 2);
   }
 };
 

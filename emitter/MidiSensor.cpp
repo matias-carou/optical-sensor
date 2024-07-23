@@ -24,11 +24,13 @@ uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
 }
 
 MidiSensor::MidiSensor(const SensorConfig &config) {
+  infraredSensor = config.infraredSensor;
   sensorType = config.sensorType;
   controllerNumber = config.controllerNumber;
   pin = config.pin;
   midiBus = config.midiBus;
   filterType = config.filterType;
+  weight = config.weight ? config.weight : 3;
   communicationType = config.communicationType;
   intPin = config.intPin;
   _floor = config.floorThreshold;
@@ -138,7 +140,7 @@ bool MidiSensor::isSwitchDebounced() {
   return true;
 }
 
-int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
+int16_t MidiSensor::getRawValue() {
   if (sensorType == "potentiometer" || sensorType == "force") {
     return analogRead(pin);
   }
@@ -149,13 +151,14 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
     return inches;
   }
 
-  if (sensorType == "infrared") {
+  if (sensorType == "infrared" && !!this->infraredSensor) {
     VL53L0X_RangingMeasurementData_t measure;
 
-    lox->rangingTest(&measure, false);
+    this->infraredSensor->rangingTest(&measure, false);
 
-    return measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2 ? measure.RangeMilliMeter :
-                                                                               this->previousRawValue;
+    const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2;
+
+    return isMesureAboveThreshold ? measure.RangeMilliMeter : this->previousRawValue;
   }
 
   // if (sensorType == "ax") {
@@ -191,10 +194,10 @@ int16_t MidiSensor::getRawValue(Adafruit_VL53L0X *lox) {
   return 0;
 }
 
-int16_t MidiSensor::runBlockingAverageFilter(int measureSize, Adafruit_VL53L0X *lox, int gap) {
+int16_t MidiSensor::runBlockingAverageFilter(int measureSize, int gap) {
   int buffer = 0;
   for (int i = 0; i < measureSize; i++) {
-    int16_t value = this->getRawValue(lox);
+    int16_t value = this->getRawValue();
     if (value < 0) {
       value = 0;
     }
@@ -241,11 +244,11 @@ int MidiSensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
   return constrain(map(actualValue, _floor, _ceil, 0, 127), 0, 127);
 }
 
-void MidiSensor::debounce(Adafruit_VL53L0X *lox) {
+void MidiSensor::debounce() {
   if (sensorType == "force") {
     this->previousToggleStatus = this->toggleStatus;
     if (this->_currentDebounceValue - this->_previousDebounceValue >= _debounceThreshold) {
-      const int16_t rawValue = this->getRawValue(lox);
+      const int16_t rawValue = this->getRawValue();
       const uint8_t sensorMappedValue = this->getMappedMidiValue(rawValue);
       this->toggleStatus = !!sensorMappedValue ? true : false;
       this->_previousDebounceValue = this->_currentDebounceValue;
@@ -277,14 +280,14 @@ void MidiSensor::sendSerialMidiMessage() {
     if (communicationType == "continous") {
       this->writeContinousMessages();
     } else {
-      MidiSensor::writeSerialMidiMessage(this->statusCode, this->controllerNumber, this->currentValue);
+      this->writeSerialMidiMessage(this->statusCode, this->controllerNumber, this->currentValue);
     }
   }
   if (this->_midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
     if (this->toggleStatus) {
-      MidiSensor::writeSerialMidiMessage(144, 60, 127);
+      this->writeSerialMidiMessage(144, 60, 127);
     } else {
-      MidiSensor::writeSerialMidiMessage(128, 60, 127);
+      this->writeSerialMidiMessage(128, 60, 127);
     }
   }
 }
@@ -298,13 +301,13 @@ int16_t MidiSensor::runExponentialFilter(int16_t rawValue, float alpha) {
   return static_cast<int16_t>(value);
 }
 
-int16_t MidiSensor::runLowPassFilter(int16_t rawValue, int N) {
-  this->averageValue += (rawValue - this->averageValue) / N;
+int16_t MidiSensor::runLowPassFilter(int16_t rawValue) {
+  this->averageValue += (rawValue - this->averageValue) / this->weight;
   return static_cast<int16_t>(std::round(this->averageValue));
 }
 
-void MidiSensor::run(Adafruit_VL53L0X *lox) {
-  int16_t rawValue = this->getRawValue(lox);
+void MidiSensor::run() {
+  int16_t rawValue = this->getRawValue();
   this->setPreviousRawValue(rawValue);
   this->setDataBuffer(rawValue);
   this->setMeasuresCounter(1);
@@ -322,13 +325,13 @@ void MidiSensor::run(Adafruit_VL53L0X *lox) {
       const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
       this->setPreviousValue(this->currentValue);
       this->setCurrentValue(sensorMappedValue);
-      this->debounce(lox);
+      this->debounce();
       this->sendSerialMidiMessage();
       this->setMeasuresCounter(0);
       this->setDataBuffer(0);
     }
   } else if (filterType == "lowPassFilter") {
-    const float averageValue = this->runLowPassFilter(rawValue, 5);
+    const float averageValue = this->runLowPassFilter(rawValue);
     const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
     this->setPreviousValue(this->currentValue);
     this->setCurrentValue(sensorMappedValue);

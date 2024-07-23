@@ -45,13 +45,13 @@ void checkForI2CDevices(TwoWire* wire) {
   }
 }
 void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3) {
-  Serial.print("MIDI message: ");
+  Serial.print(F("MIDI message: "));
   Serial.print(byte1);
-  Serial.print(" || ");
-  Serial.print("Controller number: ");
+  Serial.print(F(" || "));
+  Serial.print(F("Controller number: "));
   Serial.print(byte2);
-  Serial.print(" || ");
-  Serial.print("Value: ");
+  Serial.print(F(" || "));
+  Serial.print(F("Value: "));
   Serial.println(byte3);
 }
 }  // namespace Utils

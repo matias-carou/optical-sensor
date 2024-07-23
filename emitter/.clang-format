@@ -2,7 +2,7 @@ BasedOnStyle: Google
 BreakBeforeBraces: Attach
 AllowShortIfStatementsOnASingleLine: true
 BreakBeforeTernaryOperators: false
-ColumnLimit: 120
+ColumnLimit: 130
 BinPackParameters: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortFunctionsOnASingleLineInline: false

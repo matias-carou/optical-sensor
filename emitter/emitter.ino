@@ -22,6 +22,7 @@ const char *CONFIG = R"(
       "ceilThreshold": 350,
       "filter": {
         "filterType": "lowPassFilter",
+        "weight": 2,
         "amountOfReads": 2
       },
       "communicationType": "continous"
@@ -37,26 +38,20 @@ const char *CONFIG = R"(
 }
 )";
 
-Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 std::vector<MidiSensor *> SENSORS = {};
 
 void setup() {
   delay(250);
   Serial.begin(230400);
 
-  Serial.println("|| Starting program...");
-  Serial.println("|| Setting up sensors...");
+  Serial.println(F("|| Starting program..."));
+  Serial.println(F("|| Setting up sensors..."));
 
   SENSORS = MidiSensor::initializeSensors(CONFIG);
 
-  if (!lox.begin()) {
-    Serial.println(F("Failed to boot VL53L0X"));
-    while (1);
-  }
-
   analogReadResolution(10);
 
-  Serial.println("|| System ready <(':'<)\n");
+  Serial.println(F("|| System ready <(':'<)\n"));
 }
 
 void loop() {
@@ -64,7 +59,7 @@ void loop() {
     if (!SENSOR->isSwitchActive()) {
       continue;
     }
-    SENSOR->run(&lox);
+    SENSOR->run();
   }
-  delayMicroseconds(500);
+  delayMicroseconds(250);
 }
