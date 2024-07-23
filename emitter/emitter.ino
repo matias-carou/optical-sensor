@@ -5,8 +5,15 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include "MidiSensor.h"
-#include "Wire.h"
 
+/**
+ * + ------------------ +
+ * Three filter types   *
+ *   exponential        *
+ *   averageNonBlocking *
+ *   lowPassFilter      *
+ * + ------------------ +
+ */
 const char *CONFIG = R"(
 {
   "microcontroller": "teensy",
@@ -21,9 +28,23 @@ const char *CONFIG = R"(
       "floorThreshold": 30,
       "ceilThreshold": 350,
       "filter": {
-        "filterType": "lowPassFilter",
-        "weight": 2,
-        "amountOfReads": 2
+        "type": "lowPassFilter",
+        "weight": 2
+      },
+      "communicationType": "continous"
+    },
+    {
+      "sensorType": "accelgyro",
+      "messageType": "controlChange",
+      "controllerNumber": 110,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 0,
+      "floorThreshold": 700,
+      "ceilThreshold": 15700,
+      "filter": {
+        "type": "averageNonBlocking",
+        "weight": 80
       },
       "communicationType": "continous"
     }

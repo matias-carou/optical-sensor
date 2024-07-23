@@ -22,20 +22,21 @@ struct SensorConfig {
   int floorThreshold;
   int ceilThreshold;
   std::string messageType;
-  int amountOfReads;
   std::string communicationType;
   std::string filterType;
-  int weight;
+  int filterWeight;
   HardwareSerial *midiBus;
   Adafruit_VL53L0X *infraredSensor;
+  MPU6050 *accelgyro;
 };
 
 class MidiSensor {
  private:
   HardwareSerial *midiBus;
   Adafruit_VL53L0X *infraredSensor;
+  MPU6050 *accelgyro;
   std::string filterType;
-  int weight;
+  int filterWeight;
   std::string communicationType;
   uint8_t controllerNumber;
   char _channel;
@@ -54,7 +55,6 @@ class MidiSensor {
   bool previousSwitchState;
   bool currentSwitchState;
   bool isDebounced;
-  int16_t _threshold;
   int16_t _floor;
   int16_t _ceil;
   uint16_t getDebounceThreshold(std::string &type);
@@ -125,7 +125,7 @@ class MidiSensor {
   }
 
   static std::vector<std::string> getSupportedSensors() {
-    return { "infrared", "potentiometer", "force", "sonar", "ax", "ay" };
+    return { "infrared", "potentiometer", "force", "sonar", "accelgyro" };
   }
 
   static std::map<std::string, HardwareSerial *> getSupportedSerialPorts(const std::string microcontroller) {
@@ -152,7 +152,7 @@ class MidiSensor {
 
     if (error) {
       Serial.println("Failed to parse the JSON config...");
-      while (1);
+      while (true);
     }
 
     std::vector<MidiSensor *> sensors;
@@ -180,13 +180,15 @@ class MidiSensor {
 
     if (!midiBus) {
       Serial.println("No midi bus was configured for the instance...");
-      while (1);
+      while (true);
     }
 
-    const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
-
     Adafruit_VL53L0X *infraredSensor = nullptr;
+    MPU6050 *accelgyro = nullptr;
 
+    /**
+     * Filter weight can vary depending on the filter type and input source
+     */
     for (JsonObject pinObj : pinsArray) {
       const std::string sensorType = pinObj["sensorType"];
       const int controllerNumber = pinObj["controllerNumber"];
@@ -197,10 +199,10 @@ class MidiSensor {
       const int ceilThreshold = pinObj["ceilThreshold"];
       const std::string messageType = pinObj["messageType"];
       const std::string communicationType = pinObj["communicationType"];
-      const std::string filterType = pinObj["filter"]["filterType"];
-      const int amountOfReads = pinObj["filter"]["amountOfReads"];
-      const int weight = pinObj["filter"]["weight"];
+      const std::string filterType = pinObj["filter"]["type"];
+      const int filterWeight = pinObj["filter"]["weight"];
 
+      const std::vector<std::string> validSensors = MidiSensor::getSupportedSensors();
       const boolean isSensorNotSupported = std::find(validSensors.begin(), validSensors.end(), sensorType) == validSensors.end();
 
       if (isSensorNotSupported) {
@@ -209,23 +211,39 @@ class MidiSensor {
         continue;
       }
 
+      if (!filterWeight) {
+        const std::string message =
+            "|| \"filterWeight\" key missing for sensor type \"" + sensorType + "\", setting fallback value...";
+        Serial.println(message.c_str());
+      }
+
       if (sensorType == "infrared" && !infraredSensor) {
-        if (!weight) {
-          const std::string message =
-              "|| \"weight\" key missing for sensor type \"" + sensorType + "\", setting fallback value...";
-          Serial.println(message.c_str());
-        }
         infraredSensor = new Adafruit_VL53L0X();
         if (!infraredSensor->begin()) {
-          Serial.println(F("Failed to boot VL53L0X"));
-          while (1);
+          Serial.println(F("|| Failed to boot VL53L0X"));
+        } else {
+          Serial.println(F("|| Successfully connected to VL53L0X!"));
         }
       }
 
-      SensorConfig config = {
-        sensorType,  controllerNumber, statusCode,        pin,        intPin, floorThreshold, ceilThreshold,
-        messageType, amountOfReads,    communicationType, filterType, weight, midiBus,        infraredSensor
-      };
+      /**
+       * TODO: Investigate if there's a way to pass the same Wire reference to the infrared sensor
+       */
+      if (sensorType == "accelgyro" && !accelgyro) {
+        if (!infraredSensor) {
+          Wire.begin();
+        }
+        accelgyro = new MPU6050;
+        accelgyro->initialize();
+        if (accelgyro->testConnection()) {
+          Serial.println(F("|| Succesfully connected to IMU!"));
+        } else {
+          Serial.println(F("|| There was a problem with the IMU initialization"));
+        }
+      }
+
+      SensorConfig config = { sensorType,  controllerNumber,  statusCode, pin,          intPin,  floorThreshold, ceilThreshold,
+                              messageType, communicationType, filterType, filterWeight, midiBus, infraredSensor, accelgyro };
 
       MidiSensor *sensor = new MidiSensor(config);
 
@@ -283,15 +301,15 @@ class MidiSensor {
     }
   }
 
-  static void testAccelgiroConnection(MPU6050 &accelgyro) {
-    accelgyro.initialize();
-    if (accelgyro.testConnection()) {
-      Serial.println("Succesfully connected to IMU!");
-    } else {
-      Serial.println("There was a problem with the IMU initialization");
-    }
-    delay(100);
-  }
+  // static void testAccelgiroConnection(MPU6050 &accelgyro) {
+  //   accelgyro.initialize();
+  //   if (accelgyro.testConnection()) {
+  //     Serial.println("Succesfully connected to IMU!");
+  //   } else {
+  //     Serial.println("There was a problem with the IMU initialization");
+  //   }
+  //   delay(100);
+  // }
 
   static bool is_active(MidiSensor *SENSOR, std::vector<std::string> listOfCandidates) {
     if (std::find(listOfCandidates.begin(), listOfCandidates.end(), SENSOR->sensorType) != listOfCandidates.end()) {

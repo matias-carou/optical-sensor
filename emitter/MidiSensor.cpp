@@ -24,18 +24,18 @@ uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
 }
 
 MidiSensor::MidiSensor(const SensorConfig &config) {
+  accelgyro = config.accelgyro;
   infraredSensor = config.infraredSensor;
   sensorType = config.sensorType;
   controllerNumber = config.controllerNumber;
   pin = config.pin;
   midiBus = config.midiBus;
   filterType = config.filterType;
-  weight = config.weight ? config.weight : 3;
+  filterWeight = config.filterWeight ? config.filterWeight : 1;
   communicationType = config.communicationType;
   intPin = config.intPin;
   _floor = config.floorThreshold;
   _ceil = config.ceilThreshold;
-  _threshold = config.amountOfReads ? config.amountOfReads : 1;
   _midiMessage = config.messageType;
   _channel = 0;
   statusCode = config.statusCode;
@@ -64,7 +64,7 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
 }
 
 bool MidiSensor::isAboveThreshold() {
-  return this->measuresCounter % this->_threshold == 0;
+  return this->measuresCounter % this->filterWeight == 0;
 };
 
 void MidiSensor::setCurrentValue(uint8_t value) {
@@ -72,12 +72,12 @@ void MidiSensor::setCurrentValue(uint8_t value) {
 }
 
 void MidiSensor::setThreshold(uint8_t value) {
-  this->_threshold = value;
+  this->filterWeight = value;
 }
 
 void MidiSensor::setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings) {
   if (this->sensorType == "ax" || this->sensorType == "ay") {
-    this->_threshold = imuFilterResolution[amountOfActiveSiblings];
+    this->filterWeight = imuFilterResolution[amountOfActiveSiblings];
   }
 }
 
@@ -161,35 +161,37 @@ int16_t MidiSensor::getRawValue() {
     return isMesureAboveThreshold ? measure.RangeMilliMeter : this->previousRawValue;
   }
 
-  // if (sensorType == "ax") {
-  //   const int16_t rawValue = accelgyro->getAccelerationX();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+  if (!!this->accelgyro) {
+    // if (sensorType == "ax") {
+    const int16_t rawValue = this->accelgyro->getAccelerationX();
+    return constrain(rawValue, 0, _ceil);
+    // }
 
-  // if (sensorType == "ay") {
-  //   const int16_t rawValue = accelgyro->getAccelerationY();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+    // if (sensorType == "ay") {
+    //   const int16_t rawValue = this->accelgyro->getAccelerationY();
+    //   return constrain(rawValue, 0, _ceil);
+    // }
 
-  // if (sensorType == "az") {
-  //   const int16_t rawValue = accelgyro->getAccelerationZ();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+    // if (sensorType == "az") {
+    //   const int16_t rawValue = this->accelgyro->getAccelerationZ();
+    //   return constrain(rawValue, 0, _ceil);
+    // }
 
-  // if (sensorType == "gx") {
-  //   const int16_t rawValue = accelgyro->getRotationX();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+    // if (sensorType == "gx") {
+    //   const int16_t rawValue = this->accelgyro->getRotationX();
+    //   return constrain(rawValue, 0, _ceil);
+    // }
 
-  // if (sensorType == "gy") {
-  //   const int16_t rawValue = accelgyro->getRotationY();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+    // if (sensorType == "gy") {
+    //   const int16_t rawValue = this->accelgyro->getRotationY();
+    //   return constrain(rawValue, 0, _ceil);
+    // }
 
-  // if (sensorType == "gz") {
-  //   const int16_t rawValue = accelgyro->getRotationZ();
-  //   return constrain(rawValue, 0, _ceil);
-  // }
+    // if (sensorType == "gz") {
+    //   const int16_t rawValue = this->accelgyro->getRotationZ();
+    //   return constrain(rawValue, 0, _ceil);
+    // }
+  }
 
   return 0;
 }
@@ -293,7 +295,7 @@ void MidiSensor::sendSerialMidiMessage() {
 }
 
 int16_t MidiSensor::runNonBlockingAverageFilter() {
-  return this->dataBuffer / this->_threshold;
+  return this->dataBuffer / this->filterWeight;
 }
 
 int16_t MidiSensor::runExponentialFilter(int16_t rawValue, float alpha) {
@@ -302,7 +304,7 @@ int16_t MidiSensor::runExponentialFilter(int16_t rawValue, float alpha) {
 }
 
 int16_t MidiSensor::runLowPassFilter(int16_t rawValue) {
-  this->averageValue += (rawValue - this->averageValue) / this->weight;
+  this->averageValue += (rawValue - this->averageValue) / this->filterWeight;
   return static_cast<int16_t>(std::round(this->averageValue));
 }
 
