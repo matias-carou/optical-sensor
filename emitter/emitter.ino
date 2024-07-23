@@ -40,11 +40,11 @@ const char *CONFIG = R"(
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 0,
-      "floorThreshold": 700,
-      "ceilThreshold": 15700,
+      "floorThreshold": 1000,
+      "ceilThreshold": 15000,
       "filter": {
         "type": "averageNonBlocking",
-        "weight": 80
+        "weight": 3
       },
       "communicationType": "continous"
     }

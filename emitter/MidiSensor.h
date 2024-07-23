@@ -183,6 +183,8 @@ class MidiSensor {
       while (true);
     }
 
+    Wire.begin();
+
     Adafruit_VL53L0X *infraredSensor = nullptr;
     MPU6050 *accelgyro = nullptr;
 
@@ -219,22 +221,18 @@ class MidiSensor {
 
       if (sensorType == "infrared" && !infraredSensor) {
         infraredSensor = new Adafruit_VL53L0X();
-        if (!infraredSensor->begin()) {
+
+        if (!infraredSensor->begin(0x29, false, &Wire)) {
           Serial.println(F("|| Failed to boot VL53L0X"));
         } else {
           Serial.println(F("|| Successfully connected to VL53L0X!"));
         }
       }
 
-      /**
-       * TODO: Investigate if there's a way to pass the same Wire reference to the infrared sensor
-       */
       if (sensorType == "accelgyro" && !accelgyro) {
-        if (!infraredSensor) {
-          Wire.begin();
-        }
         accelgyro = new MPU6050;
         accelgyro->initialize();
+
         if (accelgyro->testConnection()) {
           Serial.println(F("|| Succesfully connected to IMU!"));
         } else {
@@ -301,16 +299,6 @@ class MidiSensor {
     }
   }
 
-  // static void testAccelgiroConnection(MPU6050 &accelgyro) {
-  //   accelgyro.initialize();
-  //   if (accelgyro.testConnection()) {
-  //     Serial.println("Succesfully connected to IMU!");
-  //   } else {
-  //     Serial.println("There was a problem with the IMU initialization");
-  //   }
-  //   delay(100);
-  // }
-
   static bool is_active(MidiSensor *SENSOR, std::vector<std::string> listOfCandidates) {
     if (std::find(listOfCandidates.begin(), listOfCandidates.end(), SENSOR->sensorType) != listOfCandidates.end()) {
       return SENSOR->isSwitchActive();
@@ -349,7 +337,7 @@ class MidiSensor {
    * Check if this approach is noticeable faster than the one above
    **/
   void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
-    // Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
+    Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
     uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
     this->midiBus->write(&statusCode, 1);
     this->midiBus->write(&controllerNumber, 1);
