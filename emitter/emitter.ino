@@ -11,7 +11,7 @@
  * Three filter types   *
  *   exponential        *
  *   averageNonBlocking *
- *   lowPassFilter      *
+ *   lowPass      *
  * + ------------------ +
  */
 const char *CONFIG = R"(
@@ -28,7 +28,7 @@ const char *CONFIG = R"(
       "floorThreshold": 30,
       "ceilThreshold": 350,
       "filter": {
-        "type": "lowPassFilter",
+        "type": "lowPass",
         "weight": 2
       },
       "communicationType": "continous"
@@ -37,16 +37,15 @@ const char *CONFIG = R"(
       "sensorType": "accelgyro",
       "messageType": "controlChange",
       "controllerNumber": 110,
-      "statusCode": 176,
+      "statusCode": 176, 
       "inputPin": 0,
       "intPin": 0,
       "floorThreshold": 1000,
-      "ceilThreshold": 15000,
+      "ceilThreshold": 15500,
       "filter": {
-        "type": "averageNonBlocking",
-        "weight": 3
-      },
-      "communicationType": "continous"
+        "type": "lowPass",
+        "weight": 6
+      }
     }
   ],
   "uartConfig": [
@@ -63,7 +62,7 @@ std::vector<MidiSensor *> SENSORS = {};
 
 void setup() {
   delay(250);
-  Serial.begin(230400);
+  Serial.begin(115200);
 
   Serial.println(F("|| Starting program..."));
   Serial.println(F("|| Setting up sensors..."));
@@ -82,5 +81,5 @@ void loop() {
     }
     SENSOR->run();
   }
-  delayMicroseconds(250);
+  delayMicroseconds(20);
 }

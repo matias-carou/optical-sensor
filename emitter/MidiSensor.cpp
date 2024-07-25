@@ -332,7 +332,7 @@ void MidiSensor::run() {
       this->setMeasuresCounter(0);
       this->setDataBuffer(0);
     }
-  } else if (filterType == "lowPassFilter") {
+  } else if (filterType == "lowPass") {
     const float averageValue = this->runLowPassFilter(rawValue);
     const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
     this->setPreviousValue(this->currentValue);
