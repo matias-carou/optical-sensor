@@ -35,7 +35,7 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   communicationType = config.communicationType;
   intPin = config.intPin;
   _floor = config.floorThreshold;
-  _ceil = config.ceilThreshold;
+  ceilThreshold = config.ceilThreshold;
   _midiMessage = config.messageType;
   _channel = 0;
   statusCode = config.statusCode;
@@ -162,35 +162,27 @@ int16_t MidiSensor::getRawValue() {
   }
 
   if (!!this->accelgyro) {
-    // if (sensorType == "ax") {
-    const int16_t rawValue = this->accelgyro->getAccelerationX();
-    return constrain(rawValue, 0, _ceil);
-    // }
+    /**
+     * TODO: find a way to avoid initializing this map everytime a sensor of this type enters
+     **/
+    std::map<std::string, std::function<int16_t()>> accelgyroMeasureMethods;
+    accelgyroMeasureMethods["accelgyro_ax"] = [this]() { return this->accelgyro->getAccelerationX(); };
+    accelgyroMeasureMethods["accelgyro_ay"] = [this]() { return this->accelgyro->getAccelerationY(); };
+    accelgyroMeasureMethods["accelgyro_az"] = [this]() { return this->accelgyro->getAccelerationZ(); };
+    accelgyroMeasureMethods["accelgyro_gx"] = [this]() { return this->accelgyro->getRotationX(); };
+    accelgyroMeasureMethods["accelgyro_gy"] = [this]() { return this->accelgyro->getRotationY(); };
+    accelgyroMeasureMethods["accelgyro_gz"] = [this]() { return this->accelgyro->getRotationZ(); };
 
-    // if (sensorType == "ay") {
-    //   const int16_t rawValue = this->accelgyro->getAccelerationY();
-    //   return constrain(rawValue, 0, _ceil);
-    // }
+    auto it = accelgyroMeasureMethods.find(this->sensorType);
 
-    // if (sensorType == "az") {
-    //   const int16_t rawValue = this->accelgyro->getAccelerationZ();
-    //   return constrain(rawValue, 0, _ceil);
-    // }
+    if (it != accelgyroMeasureMethods.end()) {
+      const auto it = accelgyroMeasureMethods.find(this->sensorType);
+      const int16_t rawValue = it->second();
+      return constrain(rawValue, 0, this->ceilThreshold);
+    }
 
-    // if (sensorType == "gx") {
-    //   const int16_t rawValue = this->accelgyro->getRotationX();
-    //   return constrain(rawValue, 0, _ceil);
-    // }
-
-    // if (sensorType == "gy") {
-    //   const int16_t rawValue = this->accelgyro->getRotationY();
-    //   return constrain(rawValue, 0, _ceil);
-    // }
-
-    // if (sensorType == "gz") {
-    //   const int16_t rawValue = this->accelgyro->getRotationZ();
-    //   return constrain(rawValue, 0, _ceil);
-    // }
+    const std::string message = "|| Can't get the raw value for sensor type: \"" + this->sensorType + "\".";
+    Serial.println(message.c_str());
   }
 
   return 0;
@@ -237,13 +229,13 @@ int MidiSensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
     return constrain(map(actualValue, floor, ceil, 0, 127), 0, 127);
   }
   if (this->_midiMessage == "pitchBend") {
-    const int pitchBendValue = constrain(map(actualValue, _floor, _ceil, 8191, 16383), 8191, 16383);
+    const int pitchBendValue = constrain(map(actualValue, _floor, this->ceilThreshold, 8191, 16383), 8191, 16383);
     int shiftedValue = pitchBendValue << 1;
     this->msb = highByte(shiftedValue);
     this->lsb = lowByte(shiftedValue) >> 1;
     return pitchBendValue;
   }
-  return constrain(map(actualValue, _floor, _ceil, 0, 127), 0, 127);
+  return constrain(map(actualValue, _floor, this->ceilThreshold, 0, 127), 0, 127);
 }
 
 void MidiSensor::debounce() {
@@ -311,8 +303,6 @@ int16_t MidiSensor::runLowPassFilter(int16_t rawValue) {
 void MidiSensor::run() {
   int16_t rawValue = this->getRawValue();
   this->setPreviousRawValue(rawValue);
-  this->setDataBuffer(rawValue);
-  this->setMeasuresCounter(1);
   const unsigned long currentDebounceValue = millis();
   this->setCurrentDebounceValue(currentDebounceValue);
   if (filterType == "exponential") {
@@ -322,6 +312,8 @@ void MidiSensor::run() {
     this->setCurrentValue(sensorMappedValue);
     this->sendSerialMidiMessage();
   } else if (filterType == "averageNonBlocking") {
+    this->setDataBuffer(rawValue);
+    this->setMeasuresCounter(1);
     if (this->isAboveThreshold()) {
       const int16_t averageValue = this->runNonBlockingAverageFilter();
       const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);

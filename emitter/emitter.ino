@@ -11,7 +11,7 @@
  * Three filter types   *
  *   exponential        *
  *   averageNonBlocking *
- *   lowPass      *
+ *   lowPass            *
  * + ------------------ +
  */
 const char *CONFIG = R"(
@@ -34,7 +34,7 @@ const char *CONFIG = R"(
       "communicationType": "continous"
     },
     {
-      "sensorType": "accelgyro",
+      "sensorType": "accelgyro_ax",
       "messageType": "controlChange",
       "controllerNumber": 110,
       "statusCode": 176, 
@@ -44,7 +44,7 @@ const char *CONFIG = R"(
       "ceilThreshold": 15500,
       "filter": {
         "type": "lowPass",
-        "weight": 6
+        "weight": 4
       }
     }
   ],
@@ -64,7 +64,6 @@ void setup() {
   delay(250);
   Serial.begin(115200);
 
-  Serial.println(F("|| Starting program..."));
   Serial.println(F("|| Setting up sensors..."));
 
   SENSORS = MidiSensor::initializeSensors(CONFIG);

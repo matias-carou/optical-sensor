@@ -56,7 +56,7 @@ class MidiSensor {
   bool currentSwitchState;
   bool isDebounced;
   int16_t _floor;
-  int16_t _ceil;
+  int16_t ceilThreshold;
   uint16_t getDebounceThreshold(std::string &type);
   uint8_t msb = 0;
   uint8_t lsb = 0;
@@ -125,7 +125,8 @@ class MidiSensor {
   }
 
   static std::vector<std::string> getSupportedSensors() {
-    return { "infrared", "potentiometer", "force", "sonar", "accelgyro" };
+    return { "infrared",     "potentiometer", "force",        "sonar",        "accelgyro_ax",
+             "accelgyro_ay", "accelgyro_az",  "accelgyro_gx", "accelgyro_gy", "accelgyro_gz" };
   }
 
   static std::map<std::string, HardwareSerial *> getSupportedSerialPorts(const std::string microcontroller) {
@@ -229,12 +230,14 @@ class MidiSensor {
         }
       }
 
-      if (sensorType == "accelgyro" && !accelgyro) {
+      const bool isAccelgyroRelatedSensor = sensorType.find("accelgyro") != std::string::npos;
+
+      if (isAccelgyroRelatedSensor && !accelgyro) {
         accelgyro = new MPU6050;
         accelgyro->initialize();
 
         if (accelgyro->testConnection()) {
-          Serial.println(F("|| Succesfully connected to IMU!"));
+          Serial.println(F("|| Successfully connected to IMU!"));
         } else {
           Serial.println(F("|| There was a problem with the IMU initialization"));
         }
