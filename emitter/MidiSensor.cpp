@@ -163,7 +163,7 @@ int16_t MidiSensor::getRawValue() {
 
   if (!!this->accelgyro) {
     /**
-     * TODO: find a way to avoid initializing this map everytime a sensor of this type enters
+     * TODO: improve this, avoid initializing this map everytime for every sensor of this type
      **/
     std::map<std::string, std::function<int16_t()>> accelgyroMeasureMethods;
     accelgyroMeasureMethods["accelgyro_ax"] = [this]() { return this->accelgyro->getAccelerationX(); };
