@@ -11,9 +11,7 @@ std::vector<MidiSensor *> SENSORS = {};
 
 void setup() {
   delay(250);
-  Serial.begin(115200);
-
-  Serial.println(F("|| Setting up sensors..."));
+  Serial.begin(9600);
 
   SENSORS = MidiSensor::initializeSensors(CONFIG);
 
@@ -29,5 +27,5 @@ void loop() {
     }
     SENSOR->run();
   }
-  delayMicroseconds(20);
+  delayMicroseconds(500);
 }

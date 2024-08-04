@@ -4,7 +4,7 @@
 /**
  * exponential
  * averageNonBlocking
- * lowPass
+ * lowPass <3
  */
 const char *CONFIG = R"(
 {
@@ -18,7 +18,7 @@ const char *CONFIG = R"(
       "inputPin": 0,
       "intPin": 0,
       "floorThreshold": 30,
-      "ceilThreshold": 350,
+      "ceilThreshold": 375,
       "filter": {
         "type": "lowPass",
         "weight": 2

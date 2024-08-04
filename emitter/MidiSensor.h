@@ -90,7 +90,7 @@ class MidiSensor {
   bool isAboveThreshold();
   bool isSwitchDebounced();
   int getMappedMidiValue(int16_t actualValue, int floor = 0, int ceil = 0);
-  int16_t getRawValue();
+  int16_t getCurrentValue();
   int16_t runNonBlockingAverageFilter();
   int16_t runBlockingAverageFilter(int measureSize, int gap = 500);
   int16_t runExponentialFilter(int16_t rawValue, const float alpha = 0.5f);
@@ -147,12 +147,14 @@ class MidiSensor {
   }
 
   static std::vector<MidiSensor *> initializeSensors(const char *configJson) {
+    Serial.println(F("|| Setting up sensors..."));
+
     JsonDocument doc;
 
     DeserializationError error = deserializeJson(doc, configJson);
 
     if (error) {
-      Serial.println("Failed to parse the JSON config...");
+      Serial.println("|| Failed to parse the JSON config...");
       while (true);
     }
 

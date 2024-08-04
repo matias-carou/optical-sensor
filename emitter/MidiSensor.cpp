@@ -140,50 +140,85 @@ bool MidiSensor::isSwitchDebounced() {
   return true;
 }
 
-int16_t MidiSensor::getRawValue() {
-  if (sensorType == "potentiometer" || sensorType == "force") {
-    return analogRead(pin);
-  }
-
-  if (sensorType == "sonar") {
+int16_t MidiSensor::getCurrentValue() {
+  std::map<std::string, std::function<int16_t()>> measureMethods;
+  measureMethods["potentiometer"] = [this]() { return analogRead(pin); };
+  measureMethods["force"] = [this]() { return analogRead(pin); };
+  measureMethods["sonar"] = [this]() {
     const uint32_t pulse = pulseIn(pin, HIGH);
     const int16_t inches = pulse / 147;
     return inches;
-  }
-
-  if (sensorType == "infrared" && !!this->infraredSensor) {
-    VL53L0X_RangingMeasurementData_t measure;
-
-    this->infraredSensor->rangingTest(&measure, false);
-
-    const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2;
-
-    return isMesureAboveThreshold ? measure.RangeMilliMeter : this->previousRawValue;
-  }
-
-  if (!!this->accelgyro) {
-    /**
-     * TODO: improve this, avoid initializing this map everytime for every sensor of this type
-     **/
-    std::map<std::string, std::function<int16_t()>> accelgyroMeasureMethods;
-    accelgyroMeasureMethods["accelgyro_ax"] = [this]() { return this->accelgyro->getAccelerationX(); };
-    accelgyroMeasureMethods["accelgyro_ay"] = [this]() { return this->accelgyro->getAccelerationY(); };
-    accelgyroMeasureMethods["accelgyro_az"] = [this]() { return this->accelgyro->getAccelerationZ(); };
-    accelgyroMeasureMethods["accelgyro_gx"] = [this]() { return this->accelgyro->getRotationX(); };
-    accelgyroMeasureMethods["accelgyro_gy"] = [this]() { return this->accelgyro->getRotationY(); };
-    accelgyroMeasureMethods["accelgyro_gz"] = [this]() { return this->accelgyro->getRotationZ(); };
-
-    auto it = accelgyroMeasureMethods.find(this->sensorType);
-
-    if (it != accelgyroMeasureMethods.end()) {
-      const auto it = accelgyroMeasureMethods.find(this->sensorType);
-      const int16_t rawValue = it->second();
-      return constrain(rawValue, 0, this->ceilThreshold);
+  };
+  measureMethods["accelgyro_ax"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getAccelerationX();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
     }
 
-    const std::string message = "|| Can't get the raw value for sensor type: \"" + this->sensorType + "\".";
-    Serial.println(message.c_str());
+    return 0;
+  };
+  measureMethods["accelgyro_ay"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getAccelerationY();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
+    }
+    return 0;
+  };
+  measureMethods["accelgyro_az"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getAccelerationZ();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gx"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getRotationX();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gy"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getRotationY();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gz"] = [this]() {
+    if (!!this->accelgyro) {
+      const int16_t rawSensorValue = this->accelgyro->getRotationZ();
+      return constrain(rawSensorValue, 0, this->ceilThreshold);
+    }
+
+    return 0;
+  };
+  measureMethods["infrared"] = [this]() {
+    if (!!this->infraredSensor) {
+      VL53L0X_RangingMeasurementData_t measure;
+
+      this->infraredSensor->rangingTest(&measure, false);
+
+      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2;
+
+      return isMesureAboveThreshold ? measure.RangeMilliMeter : this->previousRawValue;
+    }
+
+    return 0;
+  };
+
+  const auto it = measureMethods.find(this->sensorType);
+  const auto hasMatchingFunction = it != measureMethods.end();
+
+  if (hasMatchingFunction) {
+    return it->second();
   }
+
+  const std::string message = "|| Can't get the raw value for the sensor type \"" + this->sensorType + "\"";
+  Serial.println(message.c_str());
 
   return 0;
 }
@@ -191,7 +226,7 @@ int16_t MidiSensor::getRawValue() {
 int16_t MidiSensor::runBlockingAverageFilter(int measureSize, int gap) {
   int buffer = 0;
   for (int i = 0; i < measureSize; i++) {
-    int16_t value = this->getRawValue();
+    int16_t value = this->getCurrentValue();
     if (value < 0) {
       value = 0;
     }
@@ -242,7 +277,7 @@ void MidiSensor::debounce() {
   if (sensorType == "force") {
     this->previousToggleStatus = this->toggleStatus;
     if (this->_currentDebounceValue - this->_previousDebounceValue >= _debounceThreshold) {
-      const int16_t rawValue = this->getRawValue();
+      const int16_t rawValue = this->getCurrentValue();
       const uint8_t sensorMappedValue = this->getMappedMidiValue(rawValue);
       this->toggleStatus = !!sensorMappedValue ? true : false;
       this->_previousDebounceValue = this->_currentDebounceValue;
@@ -301,7 +336,7 @@ int16_t MidiSensor::runLowPassFilter(int16_t rawValue) {
 }
 
 void MidiSensor::run() {
-  int16_t rawValue = this->getRawValue();
+  int16_t rawValue = this->getCurrentValue();
   this->setPreviousRawValue(rawValue);
   const unsigned long currentDebounceValue = millis();
   this->setCurrentDebounceValue(currentDebounceValue);
