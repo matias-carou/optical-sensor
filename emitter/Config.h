@@ -9,6 +9,7 @@
 const char *CONFIG = R"(
 {
   "microcontroller": "teensy",
+  "midiCommunicationType": "serial",
   "sensors": [
     {
       "sensorType": "infrared",
@@ -23,7 +24,12 @@ const char *CONFIG = R"(
         "type": "lowPass",
         "weight": 2
       },
-      "communicationType": "continous"
+      "modulator": {
+        "target": "filterWeight",
+        "minValue": 2,
+        "maxValue": 10
+      },
+      "writeContinousValues": true
     },
     {
       "sensorType": "accelgyro_ax",

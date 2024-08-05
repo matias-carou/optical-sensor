@@ -32,27 +32,28 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   midiBus = config.midiBus;
   filterType = config.filterType;
   filterWeight = config.filterWeight ? config.filterWeight : 1;
-  communicationType = config.communicationType;
+  writeContinousValues = config.writeContinousValues;
+  midiCommunicationType = config.midiCommunicationType;
   intPin = config.intPin;
-  _floor = config.floorThreshold;
+  floor = config.floorThreshold;
   ceilThreshold = config.ceilThreshold;
-  _midiMessage = config.messageType;
-  _channel = 0;
+  midiMessage = config.messageType;
+  channel = 0;
   statusCode = config.statusCode;
   previousValue = 0;
-  previousRawValue = 0;
+  currentRawValue = 0;
   currentValue = 0;
   dataBuffer = 0;
   measuresCounter = 0;
   filteredExponentialValue = 0;
   averageValue = 0;
-  _currentDebounceValue = 0;
-  _previousDebounceValue = 0;
+  currentDebounceValue = 0;
+  previousDebounceValue = 0;
   isActive = false;
   toggleStatus = false;
   previousToggleStatus = toggleStatus;
   isAlreadyPressed = false;
-  _debounceThreshold = MidiSensor::getDebounceThreshold(sensorType);
+  debounceThreshold = MidiSensor::getDebounceThreshold(sensorType);
   currentDebounceTimer = 0;
   previousDebounceTimer = 0;
   currentSwitchState = false;
@@ -82,23 +83,15 @@ void MidiSensor::setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActive
 }
 
 void MidiSensor::setMidiMessage(std::string value) {
-  this->_midiMessage = value;
+  this->midiMessage = value;
 }
 
 void MidiSensor::setPreviousValue(uint8_t value) {
   this->previousValue = value;
 }
 
-void MidiSensor::setPreviousRawValue(int16_t value) {
-  this->previousRawValue = value;
-}
-
-void MidiSensor::setMidiChannel(uint8_t channel) {
-  this->_channel = channel;
-}
-
 void MidiSensor::setCurrentDebounceValue(unsigned long timeValue) {
-  this->_currentDebounceValue = timeValue;
+  this->currentDebounceValue = timeValue;
 }
 
 void MidiSensor::setMeasuresCounter(uint8_t value) {
@@ -202,9 +195,9 @@ int16_t MidiSensor::getCurrentValue() {
 
       this->infraredSensor->rangingTest(&measure, false);
 
-      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= _floor / 2;
+      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= floor / 2;
 
-      return isMesureAboveThreshold ? measure.RangeMilliMeter : this->previousRawValue;
+      return isMesureAboveThreshold ? measure.RangeMilliMeter : this->currentRawValue;
     }
 
     return 0;
@@ -263,24 +256,26 @@ int MidiSensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
   if (floor && ceil) {
     return constrain(map(actualValue, floor, ceil, 0, 127), 0, 127);
   }
-  if (this->_midiMessage == "pitchBend") {
-    const int pitchBendValue = constrain(map(actualValue, _floor, this->ceilThreshold, 8191, 16383), 8191, 16383);
+
+  if (this->midiMessage == "pitchBend") {
+    const int pitchBendValue = constrain(map(actualValue, floor, this->ceilThreshold, 8191, 16383), 8191, 16383);
     int shiftedValue = pitchBendValue << 1;
     this->msb = highByte(shiftedValue);
     this->lsb = lowByte(shiftedValue) >> 1;
     return pitchBendValue;
   }
-  return constrain(map(actualValue, _floor, this->ceilThreshold, 0, 127), 0, 127);
+
+  return constrain(map(actualValue, floor, this->ceilThreshold, 0, 127), 0, 127);
 }
 
 void MidiSensor::debounce() {
   if (sensorType == "force") {
     this->previousToggleStatus = this->toggleStatus;
-    if (this->_currentDebounceValue - this->_previousDebounceValue >= _debounceThreshold) {
-      const int16_t rawValue = this->getCurrentValue();
-      const uint8_t sensorMappedValue = this->getMappedMidiValue(rawValue);
+    if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
+      this->currentRawValue = this->getCurrentValue();
+      const uint8_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
       this->toggleStatus = !!sensorMappedValue ? true : false;
-      this->_previousDebounceValue = this->_currentDebounceValue;
+      this->previousDebounceValue = this->currentDebounceValue;
     }
   }
 }
@@ -305,14 +300,20 @@ void MidiSensor::writeContinousMessages() {
 }
 
 void MidiSensor::sendSerialMidiMessage() {
-  if (this->_midiMessage == "controlChange" && this->currentValue != this->previousValue) {
-    if (communicationType == "continous") {
+  if (midiCommunicationType != "serial") {
+    const std::string message = "Communication type \"" + midiCommunicationType + "\" is not yet supported.";
+    Serial.println(message.c_str());
+    return;
+  }
+
+  if (this->midiMessage == "controlChange" && this->currentValue != this->previousValue) {
+    if (this->writeContinousValues) {
       this->writeContinousMessages();
     } else {
       this->writeSerialMidiMessage(this->statusCode, this->controllerNumber, this->currentValue);
     }
   }
-  if (this->_midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
+  if (this->midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
     if (this->toggleStatus) {
       this->writeSerialMidiMessage(144, 60, 127);
     } else {
@@ -325,73 +326,86 @@ int16_t MidiSensor::runNonBlockingAverageFilter() {
   return this->dataBuffer / this->filterWeight;
 }
 
-int16_t MidiSensor::runExponentialFilter(int16_t rawValue, float alpha) {
-  const auto value = rawValue * alpha + (1.0f - alpha) * this->previousValue;
+int16_t MidiSensor::runExponentialFilter(float alpha) {
+  const auto value = this->currentRawValue * alpha + (1.0f - alpha) * this->previousValue;
   return static_cast<int16_t>(value);
 }
 
-int16_t MidiSensor::runLowPassFilter(int16_t rawValue) {
-  this->averageValue += (rawValue - this->averageValue) / this->filterWeight;
+int16_t MidiSensor::runLowPassFilter() {
+  this->averageValue += (this->currentRawValue - this->averageValue) / this->filterWeight;
   return static_cast<int16_t>(std::round(this->averageValue));
 }
 
-void MidiSensor::run() {
-  int16_t rawValue = this->getCurrentValue();
-  this->setPreviousRawValue(rawValue);
-  const unsigned long currentDebounceValue = millis();
-  this->setCurrentDebounceValue(currentDebounceValue);
-  if (filterType == "exponential") {
-    const int16_t averageValue = this->runExponentialFilter(rawValue, 0.8f);
-    const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
-    this->setPreviousValue(this->currentValue);
-    this->setCurrentValue(sensorMappedValue);
-    this->sendSerialMidiMessage();
-  } else if (filterType == "averageNonBlocking") {
-    this->setDataBuffer(rawValue);
+void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
+  const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+  this->setPreviousValue(this->currentValue);
+  this->setCurrentValue(sensorMappedValue);
+  this->debounce();
+}
+
+void MidiSensor::runFilterLogic() {
+  std::map<std::string, std::function<void()>> filterFunctions;
+  filterFunctions["exponential"] = [this]() {
+    const int16_t averageValue = this->runExponentialFilter(0.8f);
+    this->runCommonFilterLogic(averageValue);
+  };
+
+  filterFunctions["averageNonBlocking"] = [this]() {
+    this->setDataBuffer(this->currentRawValue);
     this->setMeasuresCounter(1);
     if (this->isAboveThreshold()) {
       const int16_t averageValue = this->runNonBlockingAverageFilter();
-      const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
-      this->setPreviousValue(this->currentValue);
-      this->setCurrentValue(sensorMappedValue);
-      this->debounce();
-      this->sendSerialMidiMessage();
+      this->runCommonFilterLogic(averageValue);
       this->setMeasuresCounter(0);
       this->setDataBuffer(0);
     }
-  } else if (filterType == "lowPass") {
-    const float averageValue = this->runLowPassFilter(rawValue);
-    const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
-    this->setPreviousValue(this->currentValue);
-    this->setCurrentValue(sensorMappedValue);
-    this->sendSerialMidiMessage();
-  } else {
-    const std::string message = "Filter type \"" + filterType + "\" is not supported";
+  };
+
+  filterFunctions["lowPass"] = [this]() {
+    const float averageValue = this->runLowPassFilter();
+    this->runCommonFilterLogic(averageValue);
+  };
+
+  const auto filterFunctionToRun = filterFunctions.find(this->filterType);
+  const auto hasMatchingFunction = filterFunctionToRun != filterFunctions.end();
+
+  if (!hasMatchingFunction) {
+    const std::string message =
+        "|| Skipping sensor \"" + this->sensorType + "\" Since filter type \"" + this->filterType + "\" is not yet implemented.";
     Serial.println(message.c_str());
   }
+
+  filterFunctionToRun->second();
+}
+
+void MidiSensor::run() {
+  this->currentRawValue = this->getCurrentValue();
+  this->setCurrentDebounceValue(millis());
+  this->runFilterLogic();
+  this->sendSerialMidiMessage();
 }
 
 /**
  * TODO: Test for ESP32 device.
  **/
 // void MidiSensor::sendBleMidiMessage(BLEMidiServerClass *serverInstance) {
-//   if (this->_midiMessage == "controlChange") {
+//   if (this->midiMessage == "controlChange") {
 //     if (this->currentValue != this->previousValue) {
-//       serverInstance->controlChange(_channel, controllerNumber, char(this->currentValue));
+//       serverInstance->controlChange(channel, controllerNumber, char(this->currentValue));
 //     }
 //   }
-// if (this->_midiMessage == "gate") {
+// if (this->midiMessage == "gate") {
 //   if (this->toggleStatus != this->previousToggleStatus) {
 //     if (this->toggleStatus) {
-//       serverInstance->noteOn(_channel, char(60), char(127));
+//       serverInstance->noteOn(channel, char(60), char(127));
 //     } else {
-//       serverInstance->noteOff(_channel, char(60), char(127));
+//       serverInstance->noteOff(channel, char(60), char(127));
 //     }
 //   }
 // }
-//   if (this->_midiMessage == "pitchBend") {
+//   if (this->midiMessage == "pitchBend") {
 //     if (this->currentValue != this->previousValue) {
-//       serverInstance->pitchBend(_channel, this->lsb, this->msb);
+//       serverInstance->pitchBend(channel, this->lsb, this->msb);
 //     }
 //   }
 // }

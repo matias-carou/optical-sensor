@@ -22,12 +22,13 @@ struct SensorConfig {
   int floorThreshold;
   int ceilThreshold;
   std::string messageType;
-  std::string communicationType;
+  bool writeContinousValues;
   std::string filterType;
   int filterWeight;
   HardwareSerial *midiBus;
   Adafruit_VL53L0X *infraredSensor;
   MPU6050 *accelgyro;
+  std::string midiCommunicationType;
 };
 
 class MidiSensor {
@@ -37,9 +38,10 @@ class MidiSensor {
   MPU6050 *accelgyro;
   std::string filterType;
   int filterWeight;
-  std::string communicationType;
+  bool writeContinousValues;
+  std::string midiCommunicationType;
   uint8_t controllerNumber;
-  char _channel;
+  char channel;
   uint8_t statusCode;
   uint8_t measuresCounter;
   bool isActive;
@@ -47,15 +49,15 @@ class MidiSensor {
   bool previousToggleStatus;
   bool isAlreadyPressed;
   unsigned long dataBuffer;
-  uint16_t _debounceThreshold;
-  unsigned long _currentDebounceValue;
-  unsigned long _previousDebounceValue;
+  uint16_t debounceThreshold;
+  unsigned long currentDebounceValue;
+  unsigned long previousDebounceValue;
   unsigned long currentDebounceTimer;
   unsigned long previousDebounceTimer;
   bool previousSwitchState;
   bool currentSwitchState;
   bool isDebounced;
-  int16_t _floor;
+  int16_t floor;
   int16_t ceilThreshold;
   uint16_t getDebounceThreshold(std::string &type);
   uint8_t msb = 0;
@@ -77,12 +79,12 @@ class MidiSensor {
    */
   MidiSensor(const SensorConfig &config);
   std::string sensorType;
-  std::string _midiMessage;
+  std::string midiMessage;
   uint8_t filteredExponentialValue;
   uint8_t pin;
   uint8_t intPin;
   uint8_t previousValue;
-  int16_t previousRawValue;
+  int16_t currentRawValue;
   uint8_t currentValue;
   int16_t filteredValue;
   float averageValue;
@@ -93,21 +95,21 @@ class MidiSensor {
   int16_t getCurrentValue();
   int16_t runNonBlockingAverageFilter();
   int16_t runBlockingAverageFilter(int measureSize, int gap = 500);
-  int16_t runExponentialFilter(int16_t rawValue, const float alpha = 0.5f);
-  int16_t runLowPassFilter(int16_t rawValue);
+  int16_t runExponentialFilter(const float alpha = 0.5f);
+  int16_t runLowPassFilter();
+  void runFilterLogic();
+  void runCommonFilterLogic(const int16_t averageValue);
   bool isSibling(const std::vector<std::string> &SIBLINGS);
   std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
   void setCurrentValue(uint8_t value);
   void setPreviousValue(uint8_t value);
-  void setPreviousRawValue(int16_t value);
   void setMeasuresCounter(uint8_t value);
   void setDataBuffer(int16_t value);
   void setThreshold(uint8_t value);
   void setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings);
   void setMidiMessage(std::string value);
   void sendSerialMidiMessage();
-  void setMidiChannel(uint8_t channel);
   void debounce();
   void run();
   void writeContinousMessages();
@@ -162,7 +164,14 @@ class MidiSensor {
 
     const JsonArray pinsArray = doc["sensors"].as<JsonArray>();
     const JsonArray uartConfig = doc["uartConfig"].as<JsonArray>();
-    const std::string microcontroller = doc["microcontroller"];
+    const std::string microcontroller = doc["microcontroller"].as<const char *>();
+
+    if (!doc.containsKey("midiCommunicationType")) {
+      Serial.println(F("No default communication type was provided in the config, setting \"serial\" as a fallback value..."));
+    }
+
+    const std::string midiCommunicationType =
+        doc["midiCommunicationType"] ? doc["midiCommunicationType"].as<const char *>() : "serial";
 
     const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts(microcontroller);
 
@@ -203,7 +212,7 @@ class MidiSensor {
       const int floorThreshold = pinObj["floorThreshold"];
       const int ceilThreshold = pinObj["ceilThreshold"];
       const std::string messageType = pinObj["messageType"];
-      const std::string communicationType = pinObj["communicationType"];
+      const bool writeContinousValues = pinObj["writeContinousValues"] ? pinObj["writeContinousValues"] : false;
       const std::string filterType = pinObj["filter"]["type"];
       const int filterWeight = pinObj["filter"]["weight"];
 
@@ -245,8 +254,9 @@ class MidiSensor {
         }
       }
 
-      SensorConfig config = { sensorType,  controllerNumber,  statusCode, pin,          intPin,  floorThreshold, ceilThreshold,
-                              messageType, communicationType, filterType, filterWeight, midiBus, infraredSensor, accelgyro };
+      SensorConfig config = { sensorType,     controllerNumber, statusCode,           pin,        intPin,       floorThreshold,
+                              ceilThreshold,  messageType,      writeContinousValues, filterType, filterWeight, midiBus,
+                              infraredSensor, accelgyro,        midiCommunicationType };
 
       MidiSensor *sensor = new MidiSensor(config);
 
