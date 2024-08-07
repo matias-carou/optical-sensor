@@ -94,7 +94,6 @@ class MidiSensor {
   int getMappedMidiValue(int16_t actualValue, int floor = 0, int ceil = 0);
   int16_t getCurrentValue();
   int16_t runNonBlockingAverageFilter();
-  int16_t runBlockingAverageFilter(int measureSize, int gap = 500);
   int16_t runExponentialFilter(const float alpha = 0.5f);
   int16_t runLowPassFilter();
   void runFilterLogic();

@@ -216,20 +216,6 @@ int16_t MidiSensor::getCurrentValue() {
   return 0;
 }
 
-int16_t MidiSensor::runBlockingAverageFilter(int measureSize, int gap) {
-  int buffer = 0;
-  for (int i = 0; i < measureSize; i++) {
-    int16_t value = this->getCurrentValue();
-    if (value < 0) {
-      value = 0;
-    }
-    buffer += value;
-    delayMicroseconds(gap);
-  }
-  const int16_t result = buffer / measureSize;
-  return result;
-}
-
 std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   uint8_t samples = 1;
   if (currentValue > previousValue) {
@@ -350,6 +336,11 @@ void MidiSensor::runFilterLogic() {
     this->runCommonFilterLogic(averageValue);
   };
 
+  filterFunctions["lowPass"] = [this]() {
+    const float averageValue = this->runLowPassFilter();
+    this->runCommonFilterLogic(averageValue);
+  };
+
   filterFunctions["averageNonBlocking"] = [this]() {
     this->setDataBuffer(this->currentRawValue);
     this->setMeasuresCounter(1);
@@ -359,11 +350,6 @@ void MidiSensor::runFilterLogic() {
       this->setMeasuresCounter(0);
       this->setDataBuffer(0);
     }
-  };
-
-  filterFunctions["lowPass"] = [this]() {
-    const float averageValue = this->runLowPassFilter();
-    this->runCommonFilterLogic(averageValue);
   };
 
   const auto filterFunctionToRun = filterFunctions.find(this->filterType);
