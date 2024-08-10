@@ -35,7 +35,7 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   writeContinousValues = config.writeContinousValues;
   midiCommunicationType = config.midiCommunicationType;
   intPin = config.intPin;
-  floor = config.floorThreshold;
+  floorThreshold = config.floorThreshold;
   ceilThreshold = config.ceilThreshold;
   midiMessage = config.messageType;
   channel = 0;
@@ -195,7 +195,7 @@ int16_t MidiSensor::getCurrentValue() {
 
       this->infraredSensor->rangingTest(&measure, false);
 
-      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= floor / 2;
+      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= this->floorThreshold / 2;
 
       return isMesureAboveThreshold ? measure.RangeMilliMeter : this->currentRawValue;
     }
@@ -238,20 +238,16 @@ std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   return steps;
 }
 
-int MidiSensor::getMappedMidiValue(int16_t actualValue, int floor, int ceil) {
-  if (floor && ceil) {
-    return constrain(map(actualValue, floor, ceil, 0, 127), 0, 127);
-  }
-
+int MidiSensor::getMappedMidiValue(int16_t actualValue) {
   if (this->midiMessage == "pitchBend") {
-    const int pitchBendValue = constrain(map(actualValue, floor, this->ceilThreshold, 8191, 16383), 8191, 16383);
+    const int pitchBendValue = constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
     int shiftedValue = pitchBendValue << 1;
     this->msb = highByte(shiftedValue);
     this->lsb = lowByte(shiftedValue) >> 1;
     return pitchBendValue;
   }
 
-  return constrain(map(actualValue, floor, this->ceilThreshold, 0, 127), 0, 127);
+  return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
 }
 
 void MidiSensor::debounce() {

@@ -57,7 +57,7 @@ class MidiSensor {
   bool previousSwitchState;
   bool currentSwitchState;
   bool isDebounced;
-  int16_t floor;
+  int16_t floorThreshold;
   int16_t ceilThreshold;
   uint16_t getDebounceThreshold(std::string &type);
   uint8_t msb = 0;
@@ -91,7 +91,7 @@ class MidiSensor {
   bool isSwitchActive();
   bool isAboveThreshold();
   bool isSwitchDebounced();
-  int getMappedMidiValue(int16_t actualValue, int floor = 0, int ceil = 0);
+  int getMappedMidiValue(int16_t actualValue);
   int16_t getCurrentValue();
   int16_t runNonBlockingAverageFilter();
   int16_t runExponentialFilter(const float alpha = 0.5f);
