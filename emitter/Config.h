@@ -11,20 +11,20 @@
 //   "microcontroller": "teensy",
 //   "midiCommunicationType": "serial",
 //   "sensors": [
-//     {
-//       "sensorType": "potentiometer",
-//       "messageType": "controlChange",
-//       "controllerNumber": 112,
-//       "statusCode": 176,
-//       "inputPin": 14,
-//       "intPin": 0,
-//       "floorThreshold": 50,
-//       "ceilThreshold": 950,
-//       "filter": {
-//         "type": "lowPass",
-//         "weight": 2
-//       }
-//     }
+    // {
+    //   "sensorType": "potentiometer",
+    //   "messageType": "controlChange",
+    //   "controllerNumber": 112,
+    //   "statusCode": 176,
+    //   "inputPin": 15,
+    //   "intPin": 0,
+    //   "floorThreshold": 200,
+    //   "ceilThreshold": 700,
+    //   "filter": {
+    //     "type": "lowPass",
+    //     "weight": 4
+    //   }
+    // }
 //   ],
 //   "uartConfig": [
 //     {
@@ -100,9 +100,23 @@ const char *CONFIG = R"(
       "ceilThreshold": 950,
       "filter": {
         "type": "lowPass",
-        "weight": 2
+        "weight": 4
       }
-    }
+    },
+    {
+      "sensorType": "potentiometer",
+      "messageType": "controlChange",
+      "controllerNumber": 113,
+      "statusCode": 176,
+      "inputPin": 15,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 1000,
+      "filter": {
+        "type": "lowPass",
+        "weight": 4
+      }
+    }    
   ],
   "uartConfig": [
     {
