@@ -69,7 +69,7 @@ const char *CONFIG = R"(
       "inputPin": 0,
       "intPin": 0,
       "floorThreshold": 1000,
-      "ceilThreshold": 15500,
+      "ceilThreshold": 14000,
       "filter": {
         "type": "lowPass",
         "weight": 4
@@ -83,7 +83,7 @@ const char *CONFIG = R"(
       "inputPin": 0,
       "intPin": 0,
       "floorThreshold": 1000,
-      "ceilThreshold": 15500,
+      "ceilThreshold": 14000,
       "filter": {
         "type": "lowPass",
         "weight": 4

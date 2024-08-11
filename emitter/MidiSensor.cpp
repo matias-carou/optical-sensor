@@ -142,49 +142,44 @@ int16_t MidiSensor::getCurrentValue() {
     const int16_t inches = pulse / 147;
     return inches;
   };
-  measureMethods["accelgyro_ax"] = [this]() {
+  measureMethods["accelgyro_ax"] = [this]() -> int16_t {
     if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getAccelerationX();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
+      return this->accelgyro->getAccelerationX();
     }
 
     return 0;
   };
-  measureMethods["accelgyro_ay"] = [this]() {
+  measureMethods["accelgyro_ay"] = [this]() -> int16_t {
     if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getAccelerationY();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
-    }
-    return 0;
-  };
-  measureMethods["accelgyro_az"] = [this]() {
-    if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getAccelerationZ();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
+      return this->accelgyro->getAccelerationY();
     }
 
     return 0;
   };
-  measureMethods["accelgyro_gx"] = [this]() {
+  measureMethods["accelgyro_az"] = [this]() -> int16_t {
     if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getRotationX();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
+      return this->accelgyro->getAccelerationZ();
     }
 
     return 0;
   };
-  measureMethods["accelgyro_gy"] = [this]() {
+  measureMethods["accelgyro_gx"] = [this]() -> int16_t {
     if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getRotationY();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
+      return this->accelgyro->getRotationX();
     }
 
     return 0;
   };
-  measureMethods["accelgyro_gz"] = [this]() {
+  measureMethods["accelgyro_gy"] = [this]() -> int16_t {
     if (!!this->accelgyro) {
-      const int16_t rawSensorValue = this->accelgyro->getRotationZ();
-      return constrain(rawSensorValue, 0, this->ceilThreshold);
+      return this->accelgyro->getRotationY();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gz"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getRotationZ();
     }
 
     return 0;
