@@ -23,6 +23,74 @@ uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   return debounceThresholdValues[type];
 }
 
+std::map<std::string, std::function<int16_t()>> MidiSensor::getMeasureMethods() {
+  std::map<std::string, std::function<int16_t()>> measureMethods;
+  measureMethods["potentiometer"] = [this]() { return analogRead(pin); };
+  measureMethods["force"] = [this]() { return analogRead(pin); };
+  measureMethods["sonar"] = [this]() {
+    const uint32_t pulse = pulseIn(pin, HIGH);
+    const int16_t inches = pulse / 147;
+    return inches;
+  };
+  measureMethods["accelgyro_ax"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getAccelerationX();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_ay"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getAccelerationY();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_az"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getAccelerationZ();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gx"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getRotationX();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gy"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getRotationY();
+    }
+
+    return 0;
+  };
+  measureMethods["accelgyro_gz"] = [this]() -> int16_t {
+    if (!!this->accelgyro) {
+      return this->accelgyro->getRotationZ();
+    }
+
+    return 0;
+  };
+  measureMethods["infrared"] = [this]() {
+    if (!!this->infraredSensor) {
+      VL53L0X_RangingMeasurementData_t measure;
+
+      this->infraredSensor->rangingTest(&measure, false);
+
+      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= this->floorThreshold / 2;
+
+      return isMesureAboveThreshold ? measure.RangeMilliMeter : this->currentRawValue;
+    }
+
+    return 0;
+  };
+
+  return measureMethods;
+}
+
 MidiSensor::MidiSensor(const SensorConfig &config) {
   accelgyro = config.accelgyro;
   infraredSensor = config.infraredSensor;
@@ -54,6 +122,7 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   previousToggleStatus = toggleStatus;
   isAlreadyPressed = false;
   debounceThreshold = MidiSensor::getDebounceThreshold(sensorType);
+  measureMethods = MidiSensor::getMeasureMethods();
   currentDebounceTimer = 0;
   previousDebounceTimer = 0;
   currentSwitchState = false;
@@ -134,72 +203,8 @@ bool MidiSensor::isSwitchDebounced() {
 }
 
 int16_t MidiSensor::getCurrentValue() {
-  std::map<std::string, std::function<int16_t()>> measureMethods;
-  measureMethods["potentiometer"] = [this]() { return analogRead(pin); };
-  measureMethods["force"] = [this]() { return analogRead(pin); };
-  measureMethods["sonar"] = [this]() {
-    const uint32_t pulse = pulseIn(pin, HIGH);
-    const int16_t inches = pulse / 147;
-    return inches;
-  };
-  measureMethods["accelgyro_ax"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getAccelerationX();
-    }
-
-    return 0;
-  };
-  measureMethods["accelgyro_ay"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getAccelerationY();
-    }
-
-    return 0;
-  };
-  measureMethods["accelgyro_az"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getAccelerationZ();
-    }
-
-    return 0;
-  };
-  measureMethods["accelgyro_gx"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getRotationX();
-    }
-
-    return 0;
-  };
-  measureMethods["accelgyro_gy"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getRotationY();
-    }
-
-    return 0;
-  };
-  measureMethods["accelgyro_gz"] = [this]() -> int16_t {
-    if (!!this->accelgyro) {
-      return this->accelgyro->getRotationZ();
-    }
-
-    return 0;
-  };
-  measureMethods["infrared"] = [this]() {
-    if (!!this->infraredSensor) {
-      VL53L0X_RangingMeasurementData_t measure;
-
-      this->infraredSensor->rangingTest(&measure, false);
-
-      const bool isMesureAboveThreshold = measure.RangeStatus != 4 && measure.RangeMilliMeter >= this->floorThreshold / 2;
-
-      return isMesureAboveThreshold ? measure.RangeMilliMeter : this->currentRawValue;
-    }
-
-    return 0;
-  };
-
-  const auto it = measureMethods.find(this->sensorType);
-  const auto hasMatchingFunction = it != measureMethods.end();
+  const auto it = this->measureMethods.find(this->sensorType);
+  const auto hasMatchingFunction = it != this->measureMethods.end();
 
   if (hasMatchingFunction) {
     return it->second();

@@ -6,36 +6,6 @@
  * averageNonBlocking
  * lowPass <3
  */
-// const char *CONFIG = R"(
-// {
-//   "microcontroller": "teensy",
-//   "midiCommunicationType": "serial",
-//   "sensors": [
-    // {
-    //   "sensorType": "potentiometer",
-    //   "messageType": "controlChange",
-    //   "controllerNumber": 112,
-    //   "statusCode": 176,
-    //   "inputPin": 15,
-    //   "intPin": 0,
-    //   "floorThreshold": 200,
-    //   "ceilThreshold": 700,
-    //   "filter": {
-    //     "type": "lowPass",
-    //     "weight": 4
-    //   }
-    // }
-//   ],
-//   "uartConfig": [
-//     {
-//       "port": "Serial5",
-//       "baudRate": 230400,
-//       "communicationPurpose": "midi"
-//     }
-//   ]
-// }
-// )";
-
 const char *CONFIG = R"(
 {
   "microcontroller": "teensy",
@@ -96,27 +66,13 @@ const char *CONFIG = R"(
       "statusCode": 176,
       "inputPin": 14,
       "intPin": 0,
-      "floorThreshold": 50,
+      "floorThreshold": 100,
       "ceilThreshold": 950,
       "filter": {
         "type": "lowPass",
         "weight": 4
       }
-    },
-    {
-      "sensorType": "potentiometer",
-      "messageType": "controlChange",
-      "controllerNumber": 113,
-      "statusCode": 176,
-      "inputPin": 15,
-      "intPin": 0,
-      "floorThreshold": 50,
-      "ceilThreshold": 1000,
-      "filter": {
-        "type": "lowPass",
-        "weight": 4
-      }
-    }    
+    }  
   ],
   "uartConfig": [
     {

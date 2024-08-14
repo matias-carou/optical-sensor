@@ -33,6 +33,7 @@ struct SensorConfig {
 
 class MidiSensor {
  private:
+  std::map<std::string, std::function<int16_t()>> measureMethods;
   HardwareSerial *midiBus;
   Adafruit_VL53L0X *infraredSensor;
   MPU6050 *accelgyro;
@@ -60,6 +61,7 @@ class MidiSensor {
   int16_t floorThreshold;
   int16_t ceilThreshold;
   uint16_t getDebounceThreshold(std::string &type);
+  std::map<std::string, std::function<int16_t()>> getMeasureMethods();
   uint8_t msb = 0;
   uint8_t lsb = 0;
   uint8_t counter = 0;
