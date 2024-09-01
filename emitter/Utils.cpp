@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 
+#include <map>
+
+#include "Config.h"
 #include "I2Cdev.h"
 
 namespace Utils {
@@ -53,5 +56,40 @@ void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3) {
   Serial.print(F(" || "));
   Serial.print(F("Value: "));
   Serial.println(byte3);
+}
+void blinkDisconnectedLedState(int& brightness, int& fadeAmount, const int ledPin) {
+  analogWrite(ledPin, brightness);
+
+  brightness = brightness + fadeAmount;
+
+  if (brightness <= 0 || brightness >= 255) {
+    fadeAmount = -fadeAmount;
+  }
+
+  delay(50);
+}
+
+std::string getMicrocontrollerReadableValue() {
+  std::map<int, std::string> data;
+
+#ifdef MICROCONTROLLER_ESP32
+  data.insert({ MICROCONTROLLER_ESP32, "ESP32" });
+#endif
+#ifdef MICROCONTROLLER_TEENSY
+  data.insert({ MICROCONTROLLER_TEENSY, "Teensy" });
+#endif
+#ifdef MICROCONTROLLER_STM32
+  data.insert({ MICROCONTROLLER_STM32, "STM32" });
+#endif
+
+#ifdef MICROCONTROLLER
+  const auto it = data.find(MICROCONTROLLER);
+
+  if (it != data.end()) {
+    return it->second;
+  }
+#endif
+
+  return "non-supported";
 }
 }  // namespace Utils

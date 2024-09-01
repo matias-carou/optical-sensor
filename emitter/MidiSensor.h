@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
+#include "Config.h"
 #include "MPU6050.h"
 #include "Utils.h"
 #include "Wire.h"
@@ -41,9 +42,9 @@ class MidiSensor {
   int filterWeight;
   bool writeContinousValues;
   std::string midiCommunicationType;
-  uint8_t controllerNumber;
+  // uint8_t controllerNumber;
   char channel;
-  uint8_t statusCode;
+  // uint8_t statusCode;
   uint8_t measuresCounter;
   bool isActive;
   bool toggleStatus;
@@ -80,6 +81,9 @@ class MidiSensor {
    * @param amountOfReads
    */
   MidiSensor(const SensorConfig &config);
+  uint8_t statusCode;
+  uint8_t controllerNumber;
+  uint8_t currentValue;
   std::string sensorType;
   std::string midiMessage;
   uint8_t filteredExponentialValue;
@@ -87,7 +91,6 @@ class MidiSensor {
   uint8_t intPin;
   uint8_t previousValue;
   int16_t currentRawValue;
-  uint8_t currentValue;
   int16_t filteredValue;
   float averageValue;
   bool isSwitchActive();
@@ -132,19 +135,36 @@ class MidiSensor {
              "accelgyro_ay", "accelgyro_az",  "accelgyro_gx", "accelgyro_gy", "accelgyro_gz" };
   }
 
-  static std::map<std::string, HardwareSerial *> getSupportedSerialPorts(const std::string microcontroller) {
+  static std::map<std::string, HardwareSerial *> getSupportedSerialPorts() {
     std::map<std::string, HardwareSerial *> ports;
 
-    if (microcontroller == "teensy") {
-      ports.insert({ "Serial", (HardwareSerial *)&Serial });
-      ports.insert({ "Serial1", &Serial1 });
-      ports.insert({ "Serial2", &Serial2 });
-      ports.insert({ "Serial3", &Serial3 });
-      ports.insert({ "Serial4", &Serial4 });
-      ports.insert({ "Serial5", &Serial5 });
-    } else {
-      return std::map<std::string, HardwareSerial *>();
-    }
+#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
+#ifdef Serial
+    ports.insert({ "Serial", (HardwareSerial *)&Serial });
+#endif
+#ifdef Serial1
+    ports.insert({ "Serial1", &Serial1 });
+#endif
+#ifdef Serial2
+    ports.insert({ "Serial2", &Serial2 });
+#endif
+#ifdef Serial3
+    ports.insert({ "Serial3", &Serial3 });
+#endif
+#ifdef Serial4
+    ports.insert({ "Serial4", &Serial4 });
+#endif
+#ifdef Serial5
+    ports.insert({ "Serial5", &Serial5 });
+#endif
+#elif MICROCONTROLLER == MICROCONTROLLER_ESP32
+#ifdef Serial
+    ports.insert({ "Serial", (HardwareSerial *)&Serial });
+#endif
+
+#else
+    return std::map<std::string, HardwareSerial *>();
+#endif
 
     return ports;
   }
@@ -165,7 +185,6 @@ class MidiSensor {
 
     const JsonArray pinsArray = doc["sensors"].as<JsonArray>();
     const JsonArray uartConfig = doc["uartConfig"].as<JsonArray>();
-    const std::string microcontroller = doc["microcontroller"].as<const char *>();
 
     if (!doc.containsKey("midiCommunicationType")) {
       Serial.println(F("No default communication type was provided in the config, setting \"serial\" as a fallback value..."));
@@ -174,9 +193,11 @@ class MidiSensor {
     const std::string midiCommunicationType =
         doc["midiCommunicationType"] ? doc["midiCommunicationType"].as<const char *>() : "serial";
 
-    const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts(microcontroller);
+    const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts();
 
     HardwareSerial *midiBus = nullptr;
+
+    Serial.println("|| Setting up serial ports...");
 
     for (JsonObject uartObj : uartConfig) {
       const std::string port = uartObj["port"];
@@ -192,8 +213,7 @@ class MidiSensor {
     }
 
     if (!midiBus) {
-      Serial.println("No midi bus was configured for the instance...");
-      while (true);
+      Serial.println("||No midi bus was configured for the instance...");
     }
 
     Wire.begin();
@@ -354,11 +374,11 @@ class MidiSensor {
    **/
   void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
     Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
-    uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a single uint16_t value
-    this->midiBus->write(&statusCode, 1);
-    this->midiBus->write(&controllerNumber, 1);
-    this->midiBus->write(&sensorValue, 1);
-    this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet), 2);
+    // uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a
+    // this->midiBus->write(&statusCode, 1);
+    // this->midiBus->write(&controllerNumber, 1);
+    // this->midiBus->write(&sensorValue, 1);
+    // this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet), 2);
   }
 };
 

@@ -289,6 +289,7 @@ void MidiSensor::sendSerialMidiMessage() {
   }
 
   if (this->midiMessage == "controlChange" && this->currentValue != this->previousValue) {
+    // MIID.sendControlChange(this->controllerNumber, this->currentValue, this->statusCode)
     if (this->writeContinousValues) {
       this->writeContinousMessages();
     } else {
@@ -364,7 +365,7 @@ void MidiSensor::run() {
   this->currentRawValue = this->getCurrentValue();
   this->setCurrentDebounceValue(millis());
   this->runFilterLogic();
-  this->sendSerialMidiMessage();
+  // this->sendSerialMidiMessage();
 }
 
 /**
