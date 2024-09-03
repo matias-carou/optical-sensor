@@ -20,7 +20,7 @@ const char *CONFIG = R"(
       "ceilThreshold": 980,
       "filter": {
         "type": "lowPass",
-        "weight": 2
+        "weight": 4
       }
     },
     {

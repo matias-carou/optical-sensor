@@ -18,20 +18,17 @@
 std::vector<MidiSensor *> SENSORS = {};
 
 const int LED_PIN = 3;
-int brightness = 0;
-int fadeAmount = 5;
 
 #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
 const int RESET_PIN = 2;
 #endif
 
 void setup() {
-  delay(1000);
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   const std::string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
-  const std::string str = "|| Compiling code for microcontroller " + microControllerValue;
+  const std::string str = "|| Uploading code for microcontroller " + microControllerValue;
   Serial.println(str.c_str());
 
   SENSORS = MidiSensor::initializeSensors(CONFIG);
@@ -79,16 +76,9 @@ void loop() {
       }
 
       SENSOR->run();
-
-      if (SENSOR->currentValue != SENSOR->previousValue) {
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
-        BLEMidiServer.controlChange(0, SENSOR->controllerNumber, SENSOR->currentValue);
-#endif
-      }
     }
-
   } else {
-    Utils::blinkDisconnectedLedState(brightness, fadeAmount, LED_PIN);
+    Utils::blinkDisconnectedLedState(LED_PIN);
   }
 
   delayMicroseconds(100);

@@ -57,16 +57,12 @@ void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3) {
   Serial.print(F("Value: "));
   Serial.println(byte3);
 }
-void blinkDisconnectedLedState(int& brightness, int& fadeAmount, const int ledPin) {
-  analogWrite(ledPin, brightness);
-
-  brightness = brightness + fadeAmount;
-
-  if (brightness <= 0 || brightness >= 255) {
-    fadeAmount = -fadeAmount;
-  }
-
-  delay(50);
+void blinkDisconnectedLedState(const int ledPin) {
+  // Blink
+  delay(750);
+  analogWrite(ledPin, 0);
+  delay(750);
+  analogWrite(ledPin, 255);
 }
 
 std::string getMicrocontrollerReadableValue() {

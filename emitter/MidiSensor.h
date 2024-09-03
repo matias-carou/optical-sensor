@@ -113,7 +113,7 @@ class MidiSensor {
   void setThreshold(uint8_t value);
   void setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings);
   void setMidiMessage(std::string value);
-  void sendSerialMidiMessage();
+  void sendMidiMessage();
   void debounce();
   void run();
   void writeContinousMessages();

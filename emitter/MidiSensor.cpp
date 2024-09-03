@@ -8,7 +8,13 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
+#include "BleCommunicationClient.h"
 #include "MPU6050.h"
+#include "SerialCommunicationClient.h"
+
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
+#include <BLEMidi.h>
+#endif
 
 static const int IMU_BASE_FILTER_THRESHOLD = 35;
 
@@ -281,27 +287,33 @@ void MidiSensor::writeContinousMessages() {
   }
 }
 
-void MidiSensor::sendSerialMidiMessage() {
-  if (midiCommunicationType != "serial") {
+void MidiSensor::sendMidiMessage() {
+  if (midiCommunicationType == "serial") {
+    if (this->currentValue != this->previousValue) {
+      if (this->midiMessage == "controlChange") {
+        if (this->writeContinousValues) {
+          this->writeContinousMessages();
+        } else {
+          SerialCommunicationClient::writeSerialMidiMessage(this->controllerNumber, this->currentValue, this->statusCode,
+                                                            midiBus);
+        };
+      }
+    }
+
+    if (this->midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
+      if (this->toggleStatus) {
+        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 144, midiBus);
+      } else {
+        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 128, midiBus);
+      }
+    }
+  } else if (midiCommunicationType == "ble") {
+    if (this->currentValue != this->previousValue) {
+      BleCommunicationClient::writeBleMidiMessage(this->midiMessage, this->controllerNumber, this->currentValue, 0);
+    }
+  } else {
     const std::string message = "Communication type \"" + midiCommunicationType + "\" is not yet supported.";
     Serial.println(message.c_str());
-    return;
-  }
-
-  if (this->midiMessage == "controlChange" && this->currentValue != this->previousValue) {
-    // MIID.sendControlChange(this->controllerNumber, this->currentValue, this->statusCode)
-    if (this->writeContinousValues) {
-      this->writeContinousMessages();
-    } else {
-      this->writeSerialMidiMessage(this->statusCode, this->controllerNumber, this->currentValue);
-    }
-  }
-  if (this->midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
-    if (this->toggleStatus) {
-      this->writeSerialMidiMessage(144, 60, 127);
-    } else {
-      this->writeSerialMidiMessage(128, 60, 127);
-    }
   }
 }
 
@@ -365,30 +377,5 @@ void MidiSensor::run() {
   this->currentRawValue = this->getCurrentValue();
   this->setCurrentDebounceValue(millis());
   this->runFilterLogic();
-  // this->sendSerialMidiMessage();
+  this->sendMidiMessage();
 }
-
-/**
- * TODO: Test for ESP32 device.
- **/
-// void MidiSensor::sendBleMidiMessage(BLEMidiServerClass *serverInstance) {
-//   if (this->midiMessage == "controlChange") {
-//     if (this->currentValue != this->previousValue) {
-//       serverInstance->controlChange(channel, controllerNumber, char(this->currentValue));
-//     }
-//   }
-// if (this->midiMessage == "gate") {
-//   if (this->toggleStatus != this->previousToggleStatus) {
-//     if (this->toggleStatus) {
-//       serverInstance->noteOn(channel, char(60), char(127));
-//     } else {
-//       serverInstance->noteOff(channel, char(60), char(127));
-//     }
-//   }
-// }
-//   if (this->midiMessage == "pitchBend") {
-//     if (this->currentValue != this->previousValue) {
-//       serverInstance->pitchBend(channel, this->lsb, this->msb);
-//     }
-//   }
-// }
