@@ -69,7 +69,9 @@ void loop() {
   }
 #endif
 
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
   if (isConnected()) {
+#endif
     for (MidiSensor *SENSOR : SENSORS) {
       if (!SENSOR->isSwitchActive()) {
         continue;
@@ -77,9 +79,11 @@ void loop() {
 
       SENSOR->run();
     }
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
   } else {
     Utils::blinkDisconnectedLedState(LED_PIN);
   }
+#endif
 
   delayMicroseconds(100);
 }

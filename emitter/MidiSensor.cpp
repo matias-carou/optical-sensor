@@ -8,12 +8,13 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
-#include "BleCommunicationClient.h"
 #include "MPU6050.h"
 #include "SerialCommunicationClient.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
 #include <BLEMidi.h>
+
+#include "BleCommunicationClient.h"
 #endif
 
 static const int IMU_BASE_FILTER_THRESHOLD = 35;
@@ -308,9 +309,11 @@ void MidiSensor::sendMidiMessage() {
       }
     }
   } else if (midiCommunicationType == "ble") {
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
     if (this->currentValue != this->previousValue) {
       BleCommunicationClient::writeBleMidiMessage(this->midiMessage, this->controllerNumber, this->currentValue, 0);
     }
+#endif
   } else {
     const std::string message = "Communication type \"" + midiCommunicationType + "\" is not yet supported.";
     Serial.println(message.c_str());
