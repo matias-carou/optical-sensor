@@ -12,7 +12,7 @@ const char *CONFIG = R"(
     {
       "sensorType": "potentiometer",
       "messageType": "controlChange",
-      "controllerNumber": 112,
+      "controllerNumber": 109,
       "statusCode": 176,
       "inputPin": 4,
       "intPin": 0,
@@ -24,12 +24,40 @@ const char *CONFIG = R"(
       }
     },
     {
-      "sensorType": "infrared",
+      "sensorType": "accelgyro_ax",
       "messageType": "controlChange",
-      "controllerNumber": 109,
+      "controllerNumber": 110,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 8,
+      "floorThreshold": 400,
+      "ceilThreshold": 15500,
+      "filter": {
+        "type": "lowPass",
+        "weight": 6
+      }
+    },
+    {
+      "sensorType": "accelgyro_ay",
+      "messageType": "controlChange",
+      "controllerNumber": 111,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 7,
+      "floorThreshold": 400,
+      "ceilThreshold": 15500,
+      "filter": {
+        "type": "lowPass",
+        "weight": 6
+      }
+    },
+    {
+      "sensorType": "infrared",
+      "messageType": "controlChange",
+      "controllerNumber": 112,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 10,
       "floorThreshold": 30,
       "ceilThreshold": 375,
       "filter": {
@@ -42,20 +70,6 @@ const char *CONFIG = R"(
         "maxValue": 10
       },
       "writeContinousValues": true
-    },
-    {
-      "sensorType": "accelgyro_ax",
-      "messageType": "controlChange",
-      "controllerNumber": 111,
-      "statusCode": 176,
-      "inputPin": 0,
-      "intPin": 7,
-      "floorThreshold": 400,
-      "ceilThreshold": 15500,
-      "filter": {
-        "type": "lowPass",
-        "weight": 6
-      }
     }
   ],
   "uartConfig": [
