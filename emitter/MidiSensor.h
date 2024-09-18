@@ -169,12 +169,12 @@ class MidiSensor {
     return ports;
   }
 
-  static std::vector<MidiSensor *> initializeSensors(const char *configJson) {
+  static std::vector<MidiSensor *> initializeSensors() {
     Serial.println(F("|| Setting up sensors..."));
 
     JsonDocument doc;
 
-    DeserializationError error = deserializeJson(doc, configJson);
+    DeserializationError error = deserializeJson(doc, CONFIG);
 
     if (error) {
       Serial.println("|| Failed to parse the JSON config...");

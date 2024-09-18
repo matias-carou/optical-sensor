@@ -5,8 +5,6 @@
 
 #include <string>
 
-#include "Config.h"
-
 class BleCommunicationClient {
  private:
  public:

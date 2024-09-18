@@ -6,7 +6,6 @@
 #include <Arduino.h>
 
 #include "Adafruit_VL53L0X.h"
-#include "Config.h"
 #include "I2Cdev.h"
 #include "MidiSensor.h"
 #include "Utils.h"
@@ -31,7 +30,7 @@ void setup() {
   const std::string str = "|| Uploading code for microcontroller " + microControllerValue;
   Serial.println(str.c_str());
 
-  SENSORS = MidiSensor::initializeSensors(CONFIG);
+  SENSORS = MidiSensor::initializeSensors();
 
 #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
   pinMode(RESET_PIN, INPUT_PULLUP);

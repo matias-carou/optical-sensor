@@ -4,8 +4,6 @@
 
 #include <string>
 
-#include "Config.h"
-
 class SerialCommunicationClient {
  private:
  public:
