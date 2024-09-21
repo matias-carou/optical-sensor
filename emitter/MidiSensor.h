@@ -139,31 +139,17 @@ class MidiSensor {
     std::map<std::string, HardwareSerial *> ports;
 
 #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-#ifdef Serial
     ports.insert({ "Serial", (HardwareSerial *)&Serial });
-#endif
-#ifdef Serial1
+#  ifdef __IMXRT1062__
     ports.insert({ "Serial1", &Serial1 });
-#endif
-#ifdef Serial2
     ports.insert({ "Serial2", &Serial2 });
-#endif
-#ifdef Serial3
     ports.insert({ "Serial3", &Serial3 });
-#endif
-#ifdef Serial4
     ports.insert({ "Serial4", &Serial4 });
-#endif
-#ifdef Serial5
     ports.insert({ "Serial5", &Serial5 });
+#  endif
 #endif
-#elif MICROCONTROLLER == MICROCONTROLLER_ESP32
-#ifdef Serial
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
     ports.insert({ "Serial", (HardwareSerial *)&Serial });
-#endif
-
-#else
-    return std::map<std::string, HardwareSerial *>();
 #endif
 
     return ports;
@@ -359,26 +345,6 @@ class MidiSensor {
     const uint8_t amountOfDebouncedSensors =
         std::count_if(SENSORS.begin(), SENSORS.end(), [&](MidiSensor *s) { return is_debounced(s, candidates); });
     return candidates.size() == amountOfDebouncedSensors;
-  }
-
-  // static void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue,
-  // HardwareSerial *Serial2) {
-  //   static const byte rightGuillemet[] = { 0xC2, 0xBB };  //UTF-8 character for separating MIDI messages: 11000010,
-  //   10111011 Serial2->write(char(statusCode)); Serial2->write(char(controllerNumber));
-  //   Serial2->write(char(sensorValue));
-  //   Serial2->write(rightGuillemet, sizeof(rightGuillemet));
-  // }
-
-  /**
-   * Check if this approach is noticeable faster than the one above
-   **/
-  void writeSerialMidiMessage(uint8_t statusCode, uint8_t controllerNumber, uint8_t sensorValue) {
-    Utils::printMidiMessage(statusCode, controllerNumber, sensorValue);
-    // uint16_t rightGuillemet = 0xBB00 | 0xC2;  // combine the two bytes into a
-    // this->midiBus->write(&statusCode, 1);
-    // this->midiBus->write(&controllerNumber, 1);
-    // this->midiBus->write(&sensorValue, 1);
-    // this->midiBus->write(reinterpret_cast<uint8_t *>(&rightGuillemet), 2);
   }
 };
 

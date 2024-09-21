@@ -7,3 +7,4 @@ BinPackParameters: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortFunctionsOnASingleLineInline: false
 Cpp11BracedListStyle: false
+IndentPPDirectives: AfterHash

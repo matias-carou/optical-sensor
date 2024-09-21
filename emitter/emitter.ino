@@ -27,7 +27,7 @@ void setup() {
 
   const std::string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
-  const std::string str = "|| Uploading code for microcontroller " + microControllerValue;
+  const std::string str = "|| Running code for microcontroller " + microControllerValue;
   Serial.println(str.c_str());
 
   SENSORS = MidiSensor::initializeSensors();
@@ -62,11 +62,11 @@ const bool isConnected() {
 }
 
 void loop() {
-#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-  if (!digitalRead(RESET_PIN)) {
-    SCB_AIRCR = 0x05FA0004;
-  }
-#endif
+// #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
+//   if (!digitalRead(RESET_PIN)) {
+//     SCB_AIRCR = 0x05FA0004;
+//   }
+// #endif
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   if (isConnected()) {

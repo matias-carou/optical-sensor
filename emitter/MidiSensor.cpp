@@ -12,9 +12,9 @@
 #include "SerialCommunicationClient.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
-#include <BLEMidi.h>
+#  include <BLEMidi.h>
 
-#include "BleCommunicationClient.h"
+#  include "BleCommunicationClient.h"
 #endif
 
 static const int IMU_BASE_FILTER_THRESHOLD = 35;
@@ -283,7 +283,7 @@ void MidiSensor::writeContinousMessages() {
 
   for (uint8_t &step : steps) {
     startValue += delta;
-    MidiSensor::writeSerialMidiMessage(this->statusCode, this->controllerNumber, startValue);
+    SerialCommunicationClient::writeSerialMidiMessage(this->controllerNumber, startValue, this->statusCode, midiBus);
     step = startValue;
   }
 }
