@@ -11,12 +11,14 @@
 #include "Utils.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
-#include <BLEMidi.h>
+#  include <BLEMidi.h>
 #endif
 
 std::vector<MidiSensor *> SENSORS = {};
 
-const int LED_PIN = 3;
+const std::array<int, 2> ledPins = { 1, 3 };
+unsigned long currentTime = 0;
+bool ledToggleState = true;
 
 #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
 const int RESET_PIN = 2;
@@ -42,7 +44,10 @@ void setup() {
 
   BLEMidiServer.setOnConnectCallback([]() {
     Serial.println("BLE Controller connected!");
-    analogWrite(LED_PIN, 255);
+
+    for (const int ledPin : ledPins) {
+      analogWrite(ledPin, 255);
+    }
   });
 
   BLEMidiServer.setOnDisconnectCallback([]() { Serial.println("BLE controller disconnected!"); });
@@ -62,11 +67,11 @@ const bool isConnected() {
 }
 
 void loop() {
-// #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-//   if (!digitalRead(RESET_PIN)) {
-//     SCB_AIRCR = 0x05FA0004;
-//   }
-// #endif
+  // #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
+  //   if (!digitalRead(RESET_PIN)) {
+  //     SCB_AIRCR = 0x05FA0004;
+  //   }
+  // #endif
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   if (isConnected()) {
@@ -80,9 +85,9 @@ void loop() {
     }
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   } else {
-    Utils::blinkDisconnectedLedState(LED_PIN);
+    Utils::blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
   }
 #endif
 
-  delayMicroseconds(100);
+  delayMicroseconds(500);
 }
