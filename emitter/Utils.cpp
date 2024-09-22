@@ -6,6 +6,7 @@
 
 #include "Config.h"
 #include "I2Cdev.h"
+#include "types.h"
 
 namespace Utils {
 void printRuntimeOverrallValue(
@@ -57,7 +58,7 @@ void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3) {
   Serial.print(F("Value: "));
   Serial.println(byte3);
 }
-void blinkDisconnectedLedState(const std::array<int, 3> ledPins, unsigned long& currentTime, bool& ledToggleState) {
+void blinkDisconnectedLedState(const LedPinsArray ledPins, unsigned long& currentTime, bool& ledToggleState) {
   if (millis() - currentTime >= 500) {
     for (const int ledPin : ledPins) {
       if (ledToggleState) {

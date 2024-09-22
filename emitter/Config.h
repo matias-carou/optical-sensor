@@ -1,5 +1,4 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#pragma once
 
 #define DEBUG 0
 #define MICROCONTROLLER_ESP32 1
@@ -14,5 +13,3 @@
 // #define MICROCONTROLLER MICROCONTROLLER_TEENSY
 
 extern const char *CONFIG;
-
-#endif

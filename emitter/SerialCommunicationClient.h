@@ -1,5 +1,4 @@
-#ifndef SerialCommunicationClient_h
-#define SerialCommunicationClient_h
+#pragma once
 #include <Arduino.h>
 
 #include <string>
@@ -25,5 +24,3 @@ class SerialCommunicationClient {
 #endif
   }
 };
-
-#endif

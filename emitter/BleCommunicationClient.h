@@ -1,5 +1,4 @@
-#ifndef BleCommunicationClient_h
-#define BleCommunicationClient_h
+#pragma once
 #include <Arduino.h>
 #include <BLEMidi.h>
 
@@ -35,5 +34,3 @@ class BleCommunicationClient {
     // }
   }
 };
-
-#endif

@@ -9,6 +9,7 @@
 #include "I2Cdev.h"
 #include "MidiSensor.h"
 #include "Utils.h"
+#include "types.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
 #  include <BLEMidi.h>
@@ -16,7 +17,7 @@
 
 std::vector<MidiSensor *> SENSORS = {};
 
-const std::array<int, 3> ledPins = { 1, 3, 0 };
+const LedPinsArray ledPins = { 1, 3, 0 };
 unsigned long currentTime = 0;
 bool ledToggleState = true;
 

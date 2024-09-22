@@ -1,5 +1,4 @@
-#ifndef Sensor_h
-#define Sensor_h
+#pragma once
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -347,5 +346,3 @@ class MidiSensor {
     return candidates.size() == amountOfDebouncedSensors;
   }
 };
-
-#endif
