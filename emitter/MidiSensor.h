@@ -159,6 +159,14 @@ class MidiSensor {
 
     JsonDocument doc;
 
+    const char *CONFIG = getConfig();
+
+    if (!strlen(CONFIG)) {
+      const std::string errorMessage = "No microcontroller was defined, please choose either ESP32 or Teensy 4.0";
+      Serial.println(errorMessage.c_str());
+      while (true);
+    }
+
     DeserializationError error = deserializeJson(doc, CONFIG);
 
     if (error) {

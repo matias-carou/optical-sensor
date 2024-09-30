@@ -1,4 +1,7 @@
 #pragma once
+#include <Arduino.h>
+
+#include <string>
 
 #define DEBUG 0
 #define MICROCONTROLLER_ESP32 1
@@ -12,4 +15,7 @@
 #define MICROCONTROLLER MICROCONTROLLER_ESP32
 // #define MICROCONTROLLER MICROCONTROLLER_TEENSY
 
-extern const char *CONFIG;
+extern const char *ESP32_CONFIG;
+extern const char *TEENSY_CONFIG;
+
+const char *getConfig();
