@@ -2,7 +2,11 @@
 
 #include <Arduino.h>
 
+#include <map>
+
+#include "Config.h"
 #include "I2Cdev.h"
+#include "types.h"
 
 namespace Utils {
 void printRuntimeOverrallValue(
@@ -53,5 +57,43 @@ void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3) {
   Serial.print(F(" || "));
   Serial.print(F("Value: "));
   Serial.println(byte3);
+}
+void blinkDisconnectedLedState(const LedPinsArray ledPins, unsigned long& currentTime, bool& ledToggleState) {
+  if (millis() - currentTime >= 500) {
+    for (const int ledPin : ledPins) {
+      if (ledToggleState) {
+        analogWrite(ledPin, 255);
+      } else {
+        analogWrite(ledPin, 0);
+      }
+    }
+
+    ledToggleState = !ledToggleState;
+    currentTime = millis();
+  }
+}
+
+std::string getMicrocontrollerReadableValue() {
+  std::map<int, std::string> data;
+
+#ifdef MICROCONTROLLER_ESP32
+  data.insert({ MICROCONTROLLER_ESP32, "ESP32" });
+#endif
+#ifdef MICROCONTROLLER_TEENSY
+  data.insert({ MICROCONTROLLER_TEENSY, "Teensy" });
+#endif
+#ifdef MICROCONTROLLER_STM32
+  data.insert({ MICROCONTROLLER_STM32, "STM32" });
+#endif
+
+#ifdef MICROCONTROLLER
+  const auto it = data.find(MICROCONTROLLER);
+
+  if (it != data.end()) {
+    return it->second;
+  }
+#endif
+
+  return "non-supported";
 }
 }  // namespace Utils
