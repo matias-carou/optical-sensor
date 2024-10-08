@@ -1,0 +1,92 @@
+# The Little, Practical Box
+### A Wireless MIDI controller designed with Arduino and C++
+### Components:
+    - ESP32-C3
+    - 3 Analog Inputs
+    - 2 Sensors
+      - VL530X
+      - MPU6050 (6 DOF)
+    - 3 Switches
+      - AX
+      - AY
+      - Laser
+    - 2 Buttons
+      - RST
+      - Modulation Mode
+### Config:
+```
+'{
+  "midiCommunicationType": "ble",
+  "sensors": [
+    {
+      "sensorType": "potentiometer",
+      "messageType": "controlChange",
+      "controllerNumber": 109,
+      "statusCode": 176,
+      "inputPin": 4,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 980,
+      "filter": {
+        "type": "lowPass",
+        "weight": 4
+      }
+    },
+    {
+      "sensorType": "accelgyro_ax",
+      "messageType": "controlChange",
+      "controllerNumber": 110,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 8,
+      "floorThreshold": 400,
+      "ceilThreshold": 15500,
+      "filter": {
+        "type": "lowPass",
+        "weight": 5
+      }
+    },
+    {
+      "sensorType": "accelgyro_ay",
+      "messageType": "controlChange",
+      "controllerNumber": 111,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 7,
+      "floorThreshold": 400,
+      "ceilThreshold": 15500,
+      "filter": {
+        "type": "lowPass",
+        "weight": 5
+      }
+    },
+    {
+      "sensorType": "infrared",
+      "messageType": "controlChange",
+      "controllerNumber": 112,
+      "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 10,
+      "floorThreshold": 30,
+      "ceilThreshold": 350,
+      "filter": {
+        "type": "lowPass",
+        "weight": 1
+      },
+      "modulator": {
+        "target": "filterWeight",
+        "minValue": 2,
+        "maxValue": 10
+      },
+      "writeContinousValues": true
+    }
+  ],
+  "uartConfig": [
+    {
+      "port": "Serial",
+      "baudRate": 230400,
+      "communicationPurpose": "midi"
+    }
+  ]
+}'
+```
