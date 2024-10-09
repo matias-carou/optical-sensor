@@ -1,4 +1,4 @@
 #pragma once
 #include <array>
 
-using LedPinsArray = std::array<int, 3>;
+using LedPinsArray = std::array<int, 2>;

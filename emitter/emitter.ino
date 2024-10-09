@@ -17,7 +17,7 @@
 
 std::vector<MidiSensor *> SENSORS = {};
 
-const LedPinsArray ledPins = { 1, 3, 0 };
+const LedPinsArray ledPins = { 2, 3 };
 unsigned long currentTime = 0;
 bool ledToggleState = true;
 
