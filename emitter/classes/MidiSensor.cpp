@@ -108,7 +108,7 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   filterType = config.filterType;
   filterWeight = config.filterWeight ? config.filterWeight : 1;
   writeContinousValues = config.writeContinousValues;
-  midiCommunicationType = config.midiCommunicationType;
+  midiCommunicationType = "ble";
   intPin = config.intPin;
   floorThreshold = config.floorThreshold;
   ceilThreshold = config.ceilThreshold;

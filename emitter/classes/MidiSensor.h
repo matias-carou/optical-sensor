@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
-#include "Config.h"
+#include "../Config.h"
 #include "MPU6050.h"
-#include "Utils.h"
+#include "../Utils.h"
 #include "Wire.h"
 
 struct SensorConfig {
@@ -28,7 +28,6 @@ struct SensorConfig {
   HardwareSerial *midiBus;
   Adafruit_VL53L0X *infraredSensor;
   MPU6050 *accelgyro;
-  std::string midiCommunicationType;
 };
 
 class MidiSensor {
@@ -179,13 +178,6 @@ class MidiSensor {
     const JsonArray pinsArray = doc["sensors"].as<JsonArray>();
     const JsonArray uartConfig = doc["uartConfig"].as<JsonArray>();
 
-    if (!doc.containsKey("midiCommunicationType")) {
-      Serial.println(F("No default communication type was provided in the config, setting \"serial\" as a fallback value..."));
-    }
-
-    const std::string midiCommunicationType =
-        doc["midiCommunicationType"] ? doc["midiCommunicationType"].as<const char *>() : "serial";
-
     const std::map<std::string, HardwareSerial *> supportedPorts = MidiSensor::getSupportedSerialPorts();
 
     HardwareSerial *midiBus = nullptr;
@@ -268,9 +260,8 @@ class MidiSensor {
         }
       }
 
-      SensorConfig config = { sensorType,     controllerNumber, statusCode,           pin,        intPin,       floorThreshold,
-                              ceilThreshold,  messageType,      writeContinousValues, filterType, filterWeight, midiBus,
-                              infraredSensor, accelgyro,        midiCommunicationType };
+      SensorConfig config = { sensorType,  controllerNumber,     statusCode, pin,          intPin,  floorThreshold, ceilThreshold,
+                              messageType, writeContinousValues, filterType, filterWeight, midiBus, infraredSensor, accelgyro };
 
       MidiSensor *sensor = new MidiSensor(config);
 

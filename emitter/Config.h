@@ -15,7 +15,15 @@
 #define MICROCONTROLLER MICROCONTROLLER_ESP32
 // #define MICROCONTROLLER MICROCONTROLLER_TEENSY
 
-extern const char *ESP32_CONFIG;
-extern const char *TEENSY_CONFIG;
+#include "EspConfig.h"
+#include "TeensyConfig.h"
 
-const char *getConfig();
+inline const char *getConfig() {
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
+  return ESP32_CONFIG;
+#elif MICROCONTROLLER == MICROCONTROLLER_TEENSY
+  return TEENSY_CONFIG;
+#else
+  return "";
+#endif
+}

@@ -1,13 +1,10 @@
-/**
- * arduino-cli compile --fqbn esp32:esp32:esp32c3 . && arduino-cli upload -p /dev/cu.usbmodem2101 --fqbn esp32:esp32:esp32c3 . &&
- * arduino-cli monitor -p /dev/cu.usbmodem2101
- */
-
+#include "Config.h"
 #include <Arduino.h>
 
 #include "Adafruit_VL53L0X.h"
 #include "I2Cdev.h"
-#include "MidiSensor.h"
+#include "classes/MidiSensor.h"
+#include "classes/MidiSensor.cpp"
 #include "Utils.h"
 #include "types.h"
 
