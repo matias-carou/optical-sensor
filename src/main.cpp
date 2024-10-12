@@ -1,11 +1,10 @@
-#include "Config.h"
 #include <Arduino.h>
 
 #include "Adafruit_VL53L0X.h"
+#include "Config.h"
 #include "I2Cdev.h"
-#include "classes/MidiSensor.h"
-#include "classes/MidiSensor.cpp"
 #include "Utils.h"
+#include "classes/MidiSensor.h"
 #include "types.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
@@ -24,6 +23,8 @@ const int RESET_PIN = 2;
 
 void setup() {
   Serial.begin(9600);
+
+  while (!Serial);
 
   const std::string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
@@ -53,7 +54,7 @@ void setup() {
 
   analogReadResolution(10);
 
-  Serial.println("|| System ready <(':'<)\n");
+  Serial.println("|| (>':')> System ready <(':'<) ||\n");
 }
 
 const bool isConnected() {
