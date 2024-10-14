@@ -36,7 +36,6 @@ void setup() {
 #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
   pinMode(RESET_PIN, INPUT_PULLUP);
 #endif
-
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   Serial.println("|| ESP32 macro defined, setting up BLE server...");
   BLEMidiServer.begin("el_tuts");
@@ -57,36 +56,35 @@ void setup() {
   Serial.println("|| (>':')> System ready <(':'<) ||\n");
 }
 
-const bool isConnected() {
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
-  return BLEMidiServer.isConnected();
-#else
-  return true;
-#endif
-}
-
+/**
+ * Render either Teensy or ESP32 config
+ */
 void loop() {
-  // #if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-  //   if (!digitalRead(RESET_PIN)) {
-  //     SCB_AIRCR = 0x05FA0004;
-  //   }
-  // #endif
+#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
+  if (!digitalRead(RESET_PIN)) {
+    SCB_AIRCR = 0x05FA0004;
+  }
 
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
-  if (isConnected()) {
-#endif
-    for (MidiSensor *SENSOR : SENSORS) {
-      if (!SENSOR->isSwitchActive()) {
-        continue;
-      }
-
-      SENSOR->run();
+  for (MidiSensor *SENSOR : SENSORS) {
+    if (!SENSOR->isSwitchActive()) {
+      continue;
     }
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
-  } else {
-    Utils::blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+
+    SENSOR->run();
   }
 #endif
+#if MICROCONTROLLER == MICROCONTROLLER_ESP32
+  if (!BLEMidiServer.isConnected()) {
+    return Utils::blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+  }
 
+  for (MidiSensor *SENSOR : SENSORS) {
+    if (!SENSOR->isSwitchActive()) {
+      continue;
+    }
+
+    SENSOR->run();
+  }
+#endif
   delayMicroseconds(500);
 }
