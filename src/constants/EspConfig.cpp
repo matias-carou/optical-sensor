@@ -8,7 +8,7 @@ const char *ESP32_CONFIG = R"(
       "messageType": "controlChange",
       "controllerNumber": 109,
       "statusCode": 176,
-      "inputPin": 3,
+      "inputPin": 0,
       "intPin": 0,
       "floorThreshold": 50,
       "ceilThreshold": 1000,
@@ -32,9 +32,23 @@ const char *ESP32_CONFIG = R"(
       }
     },
     {
+      "sensorType": "potentiometer",
+      "messageType": "pitchBend",
+      "controllerNumber": 111,
+      "statusCode": 176,
+      "inputPin": 3,
+      "intPin": 0,
+      "floorThreshold": 100,
+      "ceilThreshold": 1000,
+      "filter": {
+        "type": "lowPass",
+        "weight": 3
+      }
+    },
+    {
       "sensorType": "accelgyro_ax",
       "messageType": "controlChange",
-      "controllerNumber": 111,
+      "controllerNumber": 112,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 8,
@@ -48,7 +62,7 @@ const char *ESP32_CONFIG = R"(
     {
       "sensorType": "accelgyro_ay",
       "messageType": "controlChange",
-      "controllerNumber": 112,
+      "controllerNumber": 113,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 7,
@@ -62,7 +76,7 @@ const char *ESP32_CONFIG = R"(
     {
       "sensorType": "infrared",
       "messageType": "controlChange",
-      "controllerNumber": 113,
+      "controllerNumber": 114,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 10,
