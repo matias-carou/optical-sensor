@@ -80,7 +80,7 @@ const char *ESP32_CONFIG = R"(
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 10,
-      "floorThreshold": 30,
+      "floorThreshold": 50,
       "ceilThreshold": 350,
       "filter": {
         "type": "lowPass",
