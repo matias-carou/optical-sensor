@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
-#include "../Config.h"
+#include "Config.h"
 #include "MPU6050.h"
-#include "../Utils.h"
+#include "Utils.h"
 #include "Wire.h"
 
 struct SensorConfig {

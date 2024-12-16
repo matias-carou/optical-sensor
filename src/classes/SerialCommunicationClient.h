@@ -3,8 +3,8 @@
 
 #include <string>
 
-#include "../Config.h"
-#include "../Utils.h"
+#include "Config.h"
+#include "Utils.h"
 
 class SerialCommunicationClient {
  private:

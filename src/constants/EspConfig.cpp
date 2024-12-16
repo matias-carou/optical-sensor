@@ -8,19 +8,47 @@ const char *ESP32_CONFIG = R"(
       "messageType": "controlChange",
       "controllerNumber": 109,
       "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 1000,
+      "filter": {
+        "type": "lowPass",
+        "weight": 3
+      }
+    },
+    {
+      "sensorType": "potentiometer",
+      "messageType": "controlChange",
+      "controllerNumber": 110,
+      "statusCode": 176,
       "inputPin": 4,
       "intPin": 0,
       "floorThreshold": 50,
-      "ceilThreshold": 980,
+      "ceilThreshold": 1000,
       "filter": {
         "type": "lowPass",
-        "weight": 4
+        "weight": 3
+      }
+    },
+    {
+      "sensorType": "potentiometer",
+      "messageType": "pitchBend",
+      "controllerNumber": 111,
+      "statusCode": 176,
+      "inputPin": 1,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 950,
+      "filter": {
+        "type": "lowPass",
+        "weight": 1
       }
     },
     {
       "sensorType": "accelgyro_ax",
       "messageType": "controlChange",
-      "controllerNumber": 110,
+      "controllerNumber": 112,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 8,
@@ -34,7 +62,7 @@ const char *ESP32_CONFIG = R"(
     {
       "sensorType": "accelgyro_ay",
       "messageType": "controlChange",
-      "controllerNumber": 111,
+      "controllerNumber": 113,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 7,
@@ -48,12 +76,12 @@ const char *ESP32_CONFIG = R"(
     {
       "sensorType": "infrared",
       "messageType": "controlChange",
-      "controllerNumber": 112,
+      "controllerNumber": 114,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 10,
-      "floorThreshold": 30,
-      "ceilThreshold": 350,
+      "floorThreshold": 50,
+      "ceilThreshold": 325,
       "filter": {
         "type": "lowPass",
         "weight": 1
@@ -62,8 +90,7 @@ const char *ESP32_CONFIG = R"(
         "target": "filterWeight",
         "minValue": 2,
         "maxValue": 10
-      },
-      "writeContinousValues": true
+      }
     }
   ],
   "uartConfig": [

@@ -311,7 +311,12 @@ void MidiSensor::sendMidiMessage() {
   } else if (midiCommunicationType == "ble") {
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
     if (this->currentValue != this->previousValue) {
-      BleCommunicationClient::writeBleMidiMessage(this->midiMessage, this->controllerNumber, this->currentValue, 0);
+      if (this->midiMessage == "controlChange") {
+        BLEMidiServer.controlChange(0, this->controllerNumber, this->currentValue);
+      }
+      if (this->midiMessage == "pitchBend") {
+        BLEMidiServer.pitchBend(0, this->lsb, this->msb);
+      }
     }
 #endif
   } else {
