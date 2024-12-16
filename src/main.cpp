@@ -21,14 +21,17 @@ bool ledToggleState = true;
 const int RESET_PIN = 2;
 #endif
 
+using namespace std;
+using namespace Utils;
+
 void setup() {
   Serial.begin(9600);
 
   while (!Serial);
 
-  const std::string microControllerValue = Utils::getMicrocontrollerReadableValue();
+  const string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
-  const std::string str = "|| Running code for microcontroller " + microControllerValue;
+  const string str = "|| Running code for microcontroller " + microControllerValue;
   Serial.println(str.c_str());
 
   SENSORS = MidiSensor::initializeSensors();
@@ -75,7 +78,7 @@ void loop() {
 #endif
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   if (!BLEMidiServer.isConnected()) {
-    return Utils::blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+    return blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
   }
 
   for (MidiSensor *SENSOR : SENSORS) {
