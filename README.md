@@ -1,41 +1,70 @@
-# The Little, Practical Box
-### A Wireless MIDI controller designed with Arduino and C++
-### Components:
+## A Wireless, Rechargeable MIDI Controller Designed with C++, Arduino and PlatformIO
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/b4340b90-cb64-4564-965a-65739d3961ce" alt="ble_controller_inst" width="600"/>
+</p>
+
+### Microcontroller
     - ESP32-C3
-    - 3 Analog Inputs
+### Sensors
+    - 3 Potentiometers
     - 2 Sensors
       - VL530X
-      - MPU6050 (6 DOF)
+      - MPU6050
     - 3 Switches
       - AX
       - AY
-      - Laser
-    - 2 Buttons
-      - RST
-      - Modulation Mode
-### Config:
+      - Distance
+    - 1 RST Button
+### Base Config
 ```
 '{
-  "midiCommunicationType": "ble",
   "sensors": [
     {
       "sensorType": "potentiometer",
       "messageType": "controlChange",
       "controllerNumber": 109,
       "statusCode": 176,
+      "inputPin": 0,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 1000,
+      "filter": {
+        "type": "lowPass",
+        "weight": 3
+      }
+    },
+    {
+      "sensorType": "potentiometer",
+      "messageType": "controlChange",
+      "controllerNumber": 110,
+      "statusCode": 176,
       "inputPin": 4,
       "intPin": 0,
       "floorThreshold": 50,
-      "ceilThreshold": 980,
+      "ceilThreshold": 1000,
       "filter": {
         "type": "lowPass",
-        "weight": 4
+        "weight": 3
+      }
+    },
+    {
+      "sensorType": "potentiometer",
+      "messageType": "pitchBend",
+      "controllerNumber": 111,
+      "statusCode": 176,
+      "inputPin": 1,
+      "intPin": 0,
+      "floorThreshold": 50,
+      "ceilThreshold": 950,
+      "filter": {
+        "type": "lowPass",
+        "weight": 1
       }
     },
     {
       "sensorType": "accelgyro_ax",
       "messageType": "controlChange",
-      "controllerNumber": 110,
+      "controllerNumber": 112,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 8,
@@ -49,7 +78,7 @@
     {
       "sensorType": "accelgyro_ay",
       "messageType": "controlChange",
-      "controllerNumber": 111,
+      "controllerNumber": 113,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 7,
@@ -63,12 +92,12 @@
     {
       "sensorType": "infrared",
       "messageType": "controlChange",
-      "controllerNumber": 112,
+      "controllerNumber": 114,
       "statusCode": 176,
       "inputPin": 0,
       "intPin": 10,
-      "floorThreshold": 30,
-      "ceilThreshold": 350,
+      "floorThreshold": 50,
+      "ceilThreshold": 325,
       "filter": {
         "type": "lowPass",
         "weight": 1
@@ -77,10 +106,26 @@
         "target": "filterWeight",
         "minValue": 2,
         "maxValue": 10
-      },
-      "writeContinousValues": true
+      }
     }
-  ],
+  ]
+}'
+```
+
+### Macros
+  - Define the microcontroller to be used
+    - __MICROCONTROLLER_ESP32__: Serial Communication
+    - __MICROCONTROLLER_TEENSY__: ESP32: BLE Server
+```
+#define MICROCONTROLLER MICROCONTROLLER_ESP32
+// #define MICROCONTROLLER MICROCONTROLLER_TEENSY
+```
+
+### Communication Client (Optional)
+- The codebase supports both BLE (ESP32) and Serial (Tested with XBee series 3)
+  - A BLE client will be setup as default with guardrails to avoid initialization with a non ESP32 micro
+```
+'{
   "uartConfig": [
     {
       "port": "Serial",
@@ -90,3 +135,4 @@
   ]
 }'
 ```
+
