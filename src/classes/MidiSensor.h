@@ -9,9 +9,12 @@
 
 #include "Adafruit_VL53L0X.h"
 #include "Config.h"
+#include "DisplayManager.h"
 #include "MPU6050.h"
 #include "Utils.h"
 #include "Wire.h"
+
+extern DisplayManager &display;
 
 struct SensorConfig {
   std::string sensorType;
@@ -154,7 +157,8 @@ class MidiSensor {
   }
 
   static std::vector<MidiSensor *> initializeSensors() {
-    Serial.println(F("|| Setting up sensors..."));
+    Serial.println(F("Initializing..."));
+    display.showText("| Initializing |");
 
     JsonDocument doc;
 
@@ -170,6 +174,7 @@ class MidiSensor {
 
     if (error) {
       Serial.println("|| Failed to parse the JSON config...");
+      display.showText("| JSON Failed |");
       while (true);
     }
 
@@ -242,6 +247,7 @@ class MidiSensor {
 
         if (!infraredSensor->begin(0x29, false, &Wire)) {
           Serial.println(F("|| Failed to boot VL53L0X"));
+          display.showText("| TOF Failed |");
         } else {
           Serial.println(F("|| Successfully connected to VL53L0X!"));
         }
@@ -257,6 +263,7 @@ class MidiSensor {
           Serial.println(F("|| Successfully connected to IMU!"));
         } else {
           Serial.println(F("|| There was a problem with the IMU initialization"));
+          display.showText("| IMU Failed |");
         }
       }
 

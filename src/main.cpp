@@ -1,9 +1,11 @@
+#include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 
 #include "Adafruit_VL53L0X.h"
 #include "Config.h"
 #include "I2Cdev.h"
 #include "Utils.h"
+#include "classes/DisplayManager.h"
 #include "classes/MidiSensor.h"
 #include "types.h"
 
@@ -24,10 +26,14 @@ const int RESET_PIN = 2;
 using namespace std;
 using namespace Utils;
 
+DisplayManager &display = DisplayManager::getInstance();
+
 void setup() {
   Serial.begin(9600);
 
   while (!Serial);
+
+  display.init();
 
   const string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
@@ -45,18 +51,25 @@ void setup() {
 
   BLEMidiServer.setOnConnectCallback([]() {
     Serial.println("BLE Controller connected!");
+    display.showText("| Connected |");
+    display.setTextSize(1);
 
     for (const int ledPin : ledPins) {
       analogWrite(ledPin, 255);
     }
   });
 
-  BLEMidiServer.setOnDisconnectCallback([]() { Serial.println("BLE controller disconnected!"); });
+  BLEMidiServer.setOnDisconnectCallback([]() {
+    display.setTextSize(2);
+    Serial.println("BLE controller disconnected!");
+    display.showText("| Advertising |");
+  });
 #endif
 
   analogReadResolution(10);
 
   Serial.println("|| (>':')> System ready <(':'<) ||\n");
+  display.showText("| Advertising |");
 }
 
 /**

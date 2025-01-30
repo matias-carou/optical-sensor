@@ -313,6 +313,8 @@ void MidiSensor::sendMidiMessage() {
     if (this->currentValue != this->previousValue) {
       if (this->midiMessage == "controlChange") {
         BLEMidiServer.controlChange(0, this->controllerNumber, this->currentValue);
+        // String castedValue = String(this->currentValue);
+        // display.showText(castedValue.c_str());
       }
       if (this->midiMessage == "pitchBend") {
         BLEMidiServer.pitchBend(0, this->lsb, this->msb);
