@@ -1,9 +1,11 @@
 #ifndef DISPLAY_MANAGER_H
 #define DISPLAY_MANAGER_H
-
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
 #include <Wire.h>
+
+#include "constants/animations/DisconnectedState.h"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -17,13 +19,34 @@ class DisplayManager {
     return instance;
   }
 
+  template <size_t N>
+  static void displayAnimation(const AnimationFrame (&frames)[N]) {
+    for (const auto& frameData : frames) {
+      const auto& frame = frameData.frame;
+      const auto& delayAfterFrame = frameData.delayAfterFrame;
+
+      getInstance().display.clearDisplay();
+      getInstance().display.drawBitmap(0, 0, frame, 128, 64, WHITE);
+      getInstance().display.display();
+
+      if (delayAfterFrame) {
+        // TODO: implement non blocking delay
+        delay(delayAfterFrame);
+      }
+    }
+  }
+
   void init();
   void clear();
   void showText(const char* text, const bool clearDisplay = true);
   void setTextSize(const int testSize);
+  void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color);
+  void setMenu(JsonArray submenu);
+  JsonArray getMenu();
 
  private:
   Adafruit_SSD1306 display;
+  JsonArray menu;
 
   DisplayManager();  // Private constructor
   ~DisplayManager() = default;

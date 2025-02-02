@@ -1,5 +1,7 @@
 #include "DisplayManager.h"
 
+#include <ArduinoJson.h>
+
 DisplayManager::DisplayManager() : display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET) {
 }
 
@@ -16,6 +18,20 @@ void DisplayManager::init() {
 
 void DisplayManager::setTextSize(const int testSize) {
   display.setTextSize(1);
+}
+
+void DisplayManager::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color) {
+  display.clearDisplay();
+  display.drawBitmap(x, y, bitmap, w, h, color);
+  display.display();
+}
+
+void DisplayManager::setMenu(JsonArray submenu) {
+  menu = submenu;
+}
+
+JsonArray DisplayManager::getMenu() {
+  return menu;
 }
 
 void DisplayManager::clear() {

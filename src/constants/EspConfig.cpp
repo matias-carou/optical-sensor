@@ -19,20 +19,6 @@ const char *ESP32_CONFIG = R"(
     },
     {
       "sensorType": "potentiometer",
-      "messageType": "controlChange",
-      "controllerNumber": 110,
-      "statusCode": 176,
-      "inputPin": 4,
-      "intPin": 0,
-      "floorThreshold": 50,
-      "ceilThreshold": 1000,
-      "filter": {
-        "type": "lowPass",
-        "weight": 3
-      }
-    },
-    {
-      "sensorType": "potentiometer",
       "messageType": "pitchBend",
       "controllerNumber": 111,
       "statusCode": 176,
