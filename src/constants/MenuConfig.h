@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-extern const char *MENU_CONFIG;
+extern char MENU_CONFIG[];
 
 // Menu Structures
 struct Step {
@@ -23,4 +23,4 @@ struct MenuItem {
 };
 
 // Function to parse JSON & return menu structure
-JsonDocument parseMenuConfig();
+JsonDocument parseMenuConfig(const int depth = 15);

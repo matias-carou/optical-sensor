@@ -9,6 +9,40 @@
 #include "types.h"
 
 namespace Utils {
+// TODO: Make This Recursive + add to the Display Manager class
+void renderMenu(const JsonObject& menuObject, DisplayManager& display) {
+  const int DELAY_BETWEEN = 10;
+
+  const JsonArray menuData =
+      menuObject["data"] ? menuObject["data"].as<JsonArray>() : menuObject["submenu"]["data"].as<JsonArray>();
+
+  for (JsonObject menuItem : menuData) {
+    const char* label = menuItem["label"].as<const char*>();
+
+    if (label) {
+      display.showText(label);
+      delay(DELAY_BETWEEN);
+
+      if (menuItem["submenu"]) {
+        display.setMenu(menuItem["submenu"]);
+
+        for (JsonObject subMenuItem : display.getMenu()["data"].as<JsonArray>()) {
+          display.showText(subMenuItem["label"].as<const char*>());
+          delay(DELAY_BETWEEN);
+
+          if (subMenuItem["submenu"]) {
+            display.setMenu(subMenuItem["submenu"]);
+
+            for (JsonObject nestedMenuItem : display.getMenu()["data"].as<JsonArray>()) {
+              display.showText(nestedMenuItem["label"].as<const char*>());
+              delay(DELAY_BETWEEN);
+            }
+          }
+        }
+      }
+    }
+  }
+}
 void printRuntimeOverrallValue(
     int& counter, int& timeBuffer, unsigned long& previousTime, unsigned long& currentTime, uint8_t CYCLES_AMOUNT) {
   if (counter % CYCLES_AMOUNT == 0 && counter != 0) {

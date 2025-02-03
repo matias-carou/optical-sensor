@@ -41,12 +41,13 @@ class DisplayManager {
   void showText(const char* text, const bool clearDisplay = true);
   void setTextSize(const int testSize);
   void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color);
-  void setMenu(JsonArray submenu);
-  JsonArray getMenu();
+  void setMenu(JsonObject submenu);
+  void renderMultilineText(const char* line1, const char* line2, const bool clearDisplay = true);
+  JsonObject getMenu();
 
  private:
   Adafruit_SSD1306 display;
-  JsonArray menu;
+  JsonObject menu;
 
   DisplayManager();  // Private constructor
   ~DisplayManager() = default;

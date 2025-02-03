@@ -10,6 +10,7 @@
 #include "classes/MidiSensor.h"
 #include "constants/MenuConfig.h"
 #include "constants/animations/DisconnectedState.h"
+#include "esp_heap_caps.h"
 #include "types.h"
 
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
@@ -42,11 +43,38 @@ Encoder myEnc(CLK_PIN, DT_PIN);
 bool lastButtonState = false;
 unsigned long lastDebounceTime = 0;
 
-JsonDocument oledConfig = parseMenuConfig();
-JsonArray sensorsMenu = oledConfig[0]["submenu"].as<JsonArray>();
+void printHeapInfo() {
+  Serial.printf("Total Heap: %d bytes\n", ESP.getHeapSize());
+  Serial.printf("Free Heap: %d bytes\n", ESP.getFreeHeap());
+  Serial.printf("Used Heap: %d bytes\n", ESP.getHeapSize() - ESP.getFreeHeap());
+  Serial.printf("Largest Free Block: %d bytes\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+  Serial.println("-----------------------------");
+}
+
+JsonDocument oledConfigDoc;
+JsonObject rootSensorsMenu;
+
+JsonDocument parseJson(JsonDocument &docToRead) {
+  const auto nestingLimit = DeserializationOption::NestingLimit(15);
+  DeserializationError error = deserializeJson(oledConfigDoc, MENU_CONFIG, nestingLimit);
+
+  if (error) {
+    Serial.print("❌ JSON Parsing Failed: ");
+    Serial.println(error.f_str());
+    while (true);
+  }
+
+  if (!docToRead.is<JsonArray>()) {
+    display.showText("Root JSON Not Iterable");
+    while (true);
+  }
+
+  return docToRead;
+}
 
 void setup() {
   Serial.begin(9600);
+
   pinMode(ENCODER_BUTTON_PIN, INPUT);
 
   while (!Serial);
@@ -54,40 +82,31 @@ void setup() {
 
   display.init();
 
-  // TODO: Make This Recursive
-  if (sensorsMenu.isNull()) {
+  display.showText("Getting OLED Config...");
+
+  parseJson(oledConfigDoc);
+
+  display.showText("Parsed OLED Config...");
+
+  if (!oledConfigDoc.is<JsonArray>()) {
+    display.showText("Root JSON Not Iterable");
+    while (true);
+  }
+
+  rootSensorsMenu = oledConfigDoc[0]["submenu"].as<JsonObject>();
+
+  if (rootSensorsMenu.isNull()) {
     display.showText("OLED Parse Failed");
     while (true);
-  } else {
-    display.setMenu(sensorsMenu);
-
-    for (JsonObject menuItem : display.getMenu()) {
-      const char *label = menuItem["label"].as<const char *>();
-
-      if (label) {
-        display.showText(label);
-        delay(250);
-
-        if (menuItem["submenu"]) {
-          display.setMenu(menuItem["submenu"]);
-
-          for (JsonObject subMenuItem : display.getMenu()) {
-            display.showText(subMenuItem["label"].as<const char *>());
-            delay(25);
-
-            if (subMenuItem["submenu"]) {
-              display.setMenu(subMenuItem["submenu"]);
-
-              for (JsonObject nestedMenuItem : display.getMenu()) {
-                display.showText(nestedMenuItem["label"].as<const char *>());
-                delay(25);
-              }
-            }
-          }
-        }
-      }
-    }
   }
+
+  display.setMenu(rootSensorsMenu);
+  const JsonArray menuData = display.getMenu()["data"];
+  display.showText("Oled JSON Parse OK");
+  delay(500);
+
+  // Just for debugging purposes
+  Utils::renderMenu(rootSensorsMenu, display);
 
   const string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
@@ -107,6 +126,7 @@ void setup() {
     Serial.println("BLE Controller connected!");
     display.showText("| Connected |");
     display.setTextSize(1);
+    // display.setMenu(rootSensorsMenu);
 
     for (const int ledPin : ledPins) {
       analogWrite(ledPin, 255);
@@ -137,64 +157,131 @@ bool menuInitialized = false;
 int maxEncoderValue = -999;
 int32_t newPosition = 0;
 
+struct SelectedOption {
+  std::string id;
+  std::string label;
+  std::string value;
+};
+
+const char *selectedOptionId = "";
+bool showMultiline = false;
+
 void loop() {
-  if (!BLEMidiServer.isConnected() && millis() - prevDisconnectedTime >= 500) {
+  if (!BLEMidiServer.isConnected()) {
     menuInitialized = false;
     DisplayManager::displayAnimation(DISCONNECTED_FRAMES);
     return blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
-    prevDisconnectedTime = millis();
-  } else {
-    if (!menuInitialized) {
-      menuInitialized = true;
-      display.setMenu(sensorsMenu);
-      maxEncoderValue = static_cast<int>(display.getMenu().size());
-      oldPosition = -999;
+  }
+
+  if (!menuInitialized) {
+    display.showText("Setting up Main Menu");
+    display.setMenu(rootSensorsMenu);
+
+    delay(500);
+
+    const JsonObject currentMenu = display.getMenu();
+    printHeapInfo();
+
+    if (currentMenu.isNull()) {
+      display.showText("Invalid JSON Object");
+      while (true);
     }
 
-    const bool isButtonPressed = debounceButton(ENCODER_BUTTON_PIN, lastDebounceTime);
+    if (!currentMenu.containsKey("data")) {
+      display.showText("Failed to get menu data");
+    }
 
-    long rawPosition = myEnc.read();
-    const bool isFullTurn = rawPosition % 4 == 0;
-    const JsonArray currentMenu = display.getMenu();
+    const JsonArray menuData = currentMenu["data"];
+    printHeapInfo();
+    delay(500);
+    maxEncoderValue = static_cast<int>(menuData.size());
+    oldPosition = -999;
+    display.clear();
+    menuInitialized = true;
+  }
 
-    if (isFullTurn) {
-      // int32_t newPosition = ((-rawPosition / 4) % maxEncoderValue + maxEncoderValue) % maxEncoderValue;
-      newPosition = ((-rawPosition / 4) % maxEncoderValue + maxEncoderValue) % maxEncoderValue;
+  const bool isButtonPressed = debounceButton(ENCODER_BUTTON_PIN, lastDebounceTime);
 
-      if (newPosition != oldPosition) {
-        oldPosition = newPosition;
-        const auto label = currentMenu[newPosition]["label"];
+  /*
+  ** Get encoder data
+  */
+  long rawPosition = myEnc.read();
+  const bool isFullTurn = rawPosition % 4 == 0;
+  const JsonObject currentMenu = display.getMenu();
 
-        if (label) {
-          display.showText(label.as<const char *>());
-        } else {
-          display.showText("Label Not Defined");
+  const JsonArray currentMenuData = currentMenu["data"].as<JsonArray>();
+  const char *currentMenuLabel = currentMenu["label"];
+
+  /*
+   * Menu logic if encoder turns
+   */
+  if (isFullTurn) {
+    newPosition = ((-rawPosition / 4) % maxEncoderValue + maxEncoderValue) % maxEncoderValue;
+
+    if (newPosition != oldPosition) {
+      oldPosition = newPosition;
+      const auto label = currentMenuData[newPosition]["label"];
+      auto value = currentMenuData[newPosition]["value"];
+
+      if (value && currentMenuLabel) {
+        if (value.is<int>()) {
+          value = std::to_string(value.as<int>());
         }
-      }
-    }
-
-    if (isButtonPressed) {
-      delay(750);  // TODO: implement debounce
-      const JsonArray nestedSubMenu = currentMenu[newPosition]["submenu"];
-
-      if (nestedSubMenu) {
-        JsonArray newSelectedMenu = nestedSubMenu;
-        display.setMenu(newSelectedMenu);
-        maxEncoderValue = static_cast<int>(newSelectedMenu.size());
-        newPosition = 0;
-        oldPosition = newPosition;
+        display.renderMultilineText(currentMenuLabel, value);
       } else {
-        display.showText("Submenu N/A");
+        display.showText(label.as<const char *>());
       }
     }
+  }
 
-    for (MidiSensor *SENSOR : SENSORS) {
-      if (!SENSOR->isSwitchActive()) {
-        continue;
+  if (isButtonPressed) {
+    delay(750);  // TODO: implement debounce
+    const JsonObject nestedSubMenu = currentMenuData[newPosition]["submenu"];
+
+    if (nestedSubMenu) {
+      JsonObject newSelectedMenu = nestedSubMenu;
+      display.setMenu(newSelectedMenu);
+
+      if (!newSelectedMenu["id"]) {
+        display.showText("Failed to get menu ID");
+        delay(500);
       }
 
-      SENSOR->run();
+      selectedOptionId = newSelectedMenu["id"];
+      maxEncoderValue = static_cast<int>(newSelectedMenu["data"].size());
+      newPosition = 0;
+      oldPosition = -999;
+      showMultiline = false;
+    } else {
+      // showMultiline = true;
+      const auto dataItem = currentMenuData[newPosition];
+
+      if (dataItem) {
+        const auto menuLabel = dataItem["label"];
+        auto value = dataItem["value"];
+
+        if (value.is<int>()) {
+          value = std::to_string(value.as<int>());
+        }
+
+        // const std::string printData = "* " + std::string(menuLabel.as<const char *>()) + " *";
+        // display.showText(printData.c_str());
+
+        const SelectedOption selectedOption = { id : selectedOptionId, label : menuLabel, value : value };
+        const std::string labelString = "label: " + selectedOption.label;
+
+        display.showText("Value Selected");
+        delay(500);
+      }
     }
+  }
+
+  for (MidiSensor *SENSOR : SENSORS) {
+    if (!SENSOR->isSwitchActive()) {
+      continue;
+    }
+
+    SENSOR->run();
   }
 
   delayMicroseconds(500);

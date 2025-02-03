@@ -26,11 +26,11 @@ void DisplayManager::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int
   display.display();
 }
 
-void DisplayManager::setMenu(JsonArray submenu) {
+void DisplayManager::setMenu(JsonObject submenu) {
   menu = submenu;
 }
 
-JsonArray DisplayManager::getMenu() {
+JsonObject DisplayManager::getMenu() {
   return menu;
 }
 
@@ -58,5 +58,34 @@ void DisplayManager::showText(const char* text, const bool clearDisplay) {
   }
 
   display.println(text);
+  display.display();
+}
+
+// TODO: Iterate
+void DisplayManager::renderMultilineText(const char* line1, const char* line2, const bool clearDisplay) {
+  if (clearDisplay) {
+    display.clearDisplay();
+  }
+
+  int16_t x1, y1, x2, y2;
+  uint16_t width1, height1, width2, height2;
+  display.getTextBounds(line1, 0, 0, &x1, &y1, &width1, &height1);
+  display.getTextBounds(line2, 0, 0, &x2, &y2, &width2, &height2);
+
+  const int spacing = 2;
+
+  const int totalTextHeight = height1 + spacing + height2;
+
+  const int startY = (SCREEN_HEIGHT - totalTextHeight) / 2;
+
+  const int centerX1 = (SCREEN_WIDTH - width1) / 2;
+  const int centerX2 = (SCREEN_WIDTH - width2) / 2;
+
+  display.setCursor(centerX1, startY);
+  display.println(line1);
+
+  display.setCursor(centerX2, startY + height1 + spacing);
+  display.println(line2);
+
   display.display();
 }

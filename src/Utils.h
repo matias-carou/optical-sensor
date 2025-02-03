@@ -1,11 +1,13 @@
 #pragma once
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 #include <map>
 #include <sstream>
 #include <vector>
 
 #include "I2Cdev.h"
+#include "classes/DisplayManager.h"
 #include "types.h"
 
 namespace Utils {
@@ -15,4 +17,5 @@ void checkForI2CDevices(TwoWire* wire);
 void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3);
 void blinkDisconnectedLedState(const LedPinsArray ledPins, unsigned long& currentTime, bool& ledToggleState);
 std::string getMicrocontrollerReadableValue();
+void renderMenu(const JsonObject& menuObject, DisplayManager& display);
 }  // namespace Utils
