@@ -168,6 +168,30 @@ void goBack(const char *currentMenuId) {
   }
 }
 
+void runDisconnectedState() {
+  menuInitialized = false;
+  DisplayManager::displayAnimation(DISCONNECTED_FRAMES);
+  blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+}
+
+void initializeMenu(bool &menuInitialized) {
+  display.setMenu(rootSensorsMenu);
+
+  for (const int ledPin : ledPins) {
+    analogWrite(ledPin, 255);
+  }
+
+  const JsonObject currentMenu = display.getMenu();
+
+  Utils::validateMenu(currentMenu);
+
+  const JsonArray menuData = currentMenu["data"];
+  maxEncoderValue = static_cast<int>(menuData.size());
+  oldPosition = -999;
+  display.clear();
+  menuInitialized = true;
+}
+
 /*
  * TODO: implement JSON indexing
  */
@@ -175,27 +199,11 @@ void goBack(const char *currentMenuId) {
 
 void loop() {
   if (!BLEMidiServer.isConnected()) {
-    menuInitialized = false;
-    DisplayManager::displayAnimation(DISCONNECTED_FRAMES);
-    return blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+    return runDisconnectedState();
   }
 
   if (!menuInitialized) {
-    display.setMenu(rootSensorsMenu);
-
-    for (const int ledPin : ledPins) {
-      analogWrite(ledPin, 255);
-    }
-
-    const JsonObject currentMenu = display.getMenu();
-
-    Utils::validateMenu(currentMenu);
-
-    const JsonArray menuData = currentMenu["data"];
-    maxEncoderValue = static_cast<int>(menuData.size());
-    oldPosition = -999;
-    display.clear();
-    menuInitialized = true;
+    initializeMenu(menuInitialized);
   }
 
   /*
@@ -220,22 +228,27 @@ void loop() {
       const std::string label = currentMenuData[newPosition]["label"];
       auto value = currentMenuData[newPosition]["value"];
 
-      if (value && currentMenuLabel) {
-        if (value.is<int>()) {
-          value = std::to_string(value.as<int>());
-        }
-
+      if (currentMenuLabel) {
         std::string labelToPrint = "| " + std::string(currentMenuLabel) + " |";
-        std::string possibleDecoratedLabel = label;
 
-        const std::string castedValue = value;
+        if (value && currentMenuLabel) {
+          if (value.is<int>()) {
+            value = std::to_string(value.as<int>());
+          }
 
-        if (std::string(currentMenuId) == selectedOption.id && castedValue == selectedOption.value &&
-            newPosition == selectedOption.selectedIndex) {
-          possibleDecoratedLabel = "* " + label + " *";
+          std::string possibleDecoratedLabel = label;
+
+          const std::string castedValue = value;
+
+          if (std::string(currentMenuId) == selectedOption.id && castedValue == selectedOption.value &&
+              newPosition == selectedOption.selectedIndex) {
+            possibleDecoratedLabel = "* " + label + " *";
+          }
+
+          display.renderMultilineText({ labelToPrint.c_str(), possibleDecoratedLabel.c_str() });
+        } else {
+          display.renderMultilineText({ labelToPrint.c_str(), label.c_str() });
         }
-
-        display.renderMultilineText({ labelToPrint.c_str(), possibleDecoratedLabel.c_str() });
       } else {
         display.showText(label.c_str());
       }
