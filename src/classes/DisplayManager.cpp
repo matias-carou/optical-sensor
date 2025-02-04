@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include <vector>
+
 DisplayManager::DisplayManager() : display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET) {
 }
 
@@ -62,30 +64,59 @@ void DisplayManager::showText(const char* text, const bool clearDisplay) {
 }
 
 // TODO: Iterate
-void DisplayManager::renderMultilineText(const char* line1, const char* line2, const bool clearDisplay) {
+void DisplayManager::renderMultilineText(std::initializer_list<const char*> lines, const bool clearDisplay) {
   if (clearDisplay) {
     display.clearDisplay();
   }
 
-  int16_t x1, y1, x2, y2;
-  uint16_t width1, height1, width2, height2;
-  display.getTextBounds(line1, 0, 0, &x1, &y1, &width1, &height1);
-  display.getTextBounds(line2, 0, 0, &x2, &y2, &width2, &height2);
+  const int SPACING = 2;
 
-  const int spacing = 2;
+  int totalTextHeight = 0;
+  std::vector<uint16_t> lineHeights;
+  lineHeights.reserve(lines.size());
 
-  const int totalTextHeight = height1 + spacing + height2;
+  for (const char* line : lines) {
+    int16_t dummyX, dummyY;
+    uint16_t width, height;
+    display.getTextBounds(line, 0, 0, &dummyX, &dummyY, &width, &height);
+    lineHeights.push_back(height);
+    totalTextHeight += height;
+  }
 
-  const int startY = (SCREEN_HEIGHT - totalTextHeight) / 2;
+  totalTextHeight += SPACING * (lines.size() - 1);
 
-  const int centerX1 = (SCREEN_WIDTH - width1) / 2;
-  const int centerX2 = (SCREEN_WIDTH - width2) / 2;
+  int yPos = (SCREEN_HEIGHT - totalTextHeight) / 2;
 
-  display.setCursor(centerX1, startY);
-  display.println(line1);
+  struct lineObject {
+    const char* line;
+    int textSize = 1;
 
-  display.setCursor(centerX2, startY + height1 + spacing);
-  display.println(line2);
+    lineObject(const char* l, int ts = 1) : line(l), textSize(ts) {
+    }
+  };
+
+  std::vector<lineObject> arr;
+
+  int textSize = 1;
+
+  for (const char* line : lines) {
+    arr.push_back(lineObject(line));
+  }
+
+  auto heightIt = lineHeights.begin();
+  for (const lineObject lineData : arr) {
+    display.setTextSize(lineData.textSize);
+    int16_t x, y;
+    uint16_t width, height;
+    display.getTextBounds(lineData.line, 0, 0, &x, &y, &width, &height);
+
+    int centerX = (SCREEN_WIDTH - width) / 2;
+    display.setCursor(centerX, yPos);
+    display.println(lineData.line);
+
+    yPos += height + SPACING;
+    ++heightIt;
+  }
 
   display.display();
 }

@@ -42,7 +42,7 @@ class DisplayManager {
   void setTextSize(const int testSize);
   void drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, uint16_t color);
   void setMenu(JsonObject submenu);
-  void renderMultilineText(const char* line1, const char* line2, const bool clearDisplay = true);
+  void renderMultilineText(std::initializer_list<const char*> lines, const bool clearDisplay = true);
   JsonObject getMenu();
 
  private:

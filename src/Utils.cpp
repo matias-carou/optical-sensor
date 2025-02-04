@@ -8,7 +8,30 @@
 #include "I2Cdev.h"
 #include "types.h"
 
+extern DisplayManager& display;
+
+using namespace std;
+
 namespace Utils {
+void validateMenu(const JsonObject& currentMenu) {
+  if (currentMenu.isNull()) {
+    display.showText("Invalid JSON Object");
+    while (true);
+  }
+
+  if (!currentMenu["data"]) {
+    display.showText("Failed to get menu");
+    while (true);
+  }
+}
+void printHeapInfo(const int wait) {
+  const std::string totalHeap = "Total Heap: " + to_string(ESP.getHeapSize());
+  const std::string freeHeap = "Free Heap: " + to_string(ESP.getFreeHeap());
+  const std::string usedHeap = "Used Heap: " + to_string(ESP.getHeapSize() - ESP.getFreeHeap());
+  const std::string largestFreeBlock = "Largest Free: " + to_string(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+  display.renderMultilineText({ totalHeap.c_str(), freeHeap.c_str(), usedHeap.c_str(), largestFreeBlock.c_str() });
+  delay(wait);
+}
 // TODO: Make This Recursive + add to the Display Manager class
 void renderMenu(const JsonObject& menuObject, DisplayManager& display) {
   const int DELAY_BETWEEN = 10;

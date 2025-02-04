@@ -2,10 +2,13 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include <regex>
+
 #include "Adafruit_VL53L0X.h"
 #include "Config.h"
 #include "I2Cdev.h"
 #include "Utils.h"
+#include "classes/Button.h"
 #include "classes/DisplayManager.h"
 #include "classes/MidiSensor.h"
 #include "constants/MenuConfig.h"
@@ -36,20 +39,9 @@ DisplayManager &display = DisplayManager::getInstance();
 #define CLK_PIN 21            // Connect to Pin 1 (CLK)
 #define DT_PIN 20             // Connect to Pin 2 (DT)
 #define ENCODER_BUTTON_PIN 4  // Connect to Pin 4 (SW)
-#define BUTTON_DEBOUNCE_DELAY 2000
 
 Encoder myEnc(CLK_PIN, DT_PIN);
-
-bool lastButtonState = false;
-unsigned long lastDebounceTime = 0;
-
-void printHeapInfo() {
-  Serial.printf("Total Heap: %d bytes\n", ESP.getHeapSize());
-  Serial.printf("Free Heap: %d bytes\n", ESP.getFreeHeap());
-  Serial.printf("Used Heap: %d bytes\n", ESP.getHeapSize() - ESP.getFreeHeap());
-  Serial.printf("Largest Free Block: %d bytes\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-  Serial.println("-----------------------------");
-}
+Button encoderBtn(ENCODER_BUTTON_PIN);
 
 JsonDocument oledConfigDoc;
 JsonObject rootSensorsMenu;
@@ -59,7 +51,7 @@ JsonDocument parseJson(JsonDocument &docToRead) {
   DeserializationError error = deserializeJson(oledConfigDoc, MENU_CONFIG, nestingLimit);
 
   if (error) {
-    Serial.print("❌ JSON Parsing Failed: ");
+    display.showText("Json Parse Failed");
     Serial.println(error.f_str());
     while (true);
   }
@@ -75,7 +67,7 @@ JsonDocument parseJson(JsonDocument &docToRead) {
 void setup() {
   Serial.begin(9600);
 
-  pinMode(ENCODER_BUTTON_PIN, INPUT);
+  pinMode(encoderBtn.pin, INPUT);
 
   while (!Serial);
   // Serial.end();
@@ -87,6 +79,7 @@ void setup() {
   parseJson(oledConfigDoc);
 
   display.showText("Parsed OLED Config...");
+  Utils::printHeapInfo(2000);
 
   if (!oledConfigDoc.is<JsonArray>()) {
     display.showText("Root JSON Not Iterable");
@@ -102,11 +95,9 @@ void setup() {
 
   display.setMenu(rootSensorsMenu);
   const JsonArray menuData = display.getMenu()["data"];
-  display.showText("Oled JSON Parse OK");
-  delay(500);
 
   // Just for debugging purposes
-  Utils::renderMenu(rootSensorsMenu, display);
+  // Utils::renderMenu(rootSensorsMenu, display);
 
   const string microControllerValue = Utils::getMicrocontrollerReadableValue();
 
@@ -126,7 +117,6 @@ void setup() {
     Serial.println("BLE Controller connected!");
     display.showText("| Connected |");
     display.setTextSize(1);
-    // display.setMenu(rootSensorsMenu);
 
     for (const int ledPin : ledPins) {
       analogWrite(ledPin, 255);
@@ -161,10 +151,27 @@ struct SelectedOption {
   std::string id;
   std::string label;
   std::string value;
+  int32_t selectedIndex;
 };
 
 const char *selectedOptionId = "";
-bool showMultiline = false;
+
+SelectedOption selectedOption = { id : "", label : "", value : "", selectedIndex : 0 };
+
+void goBack(const char *currentMenuId) {
+  if (currentMenuId) {
+    const std::string parsedId = std::string(currentMenuId);
+    const std::regex subMenuPattern("\\.[^.]+$");
+    std::string output = std::regex_replace(parsedId, subMenuPattern, "");
+    display.showText(output.c_str());
+    delay(1000);
+  }
+}
+
+/*
+ * TODO: implement JSON indexing
+ */
+// const JsonDocument indexedDoc = parseSensorsMenu(oledConfigDoc);
 
 void loop() {
   if (!BLEMidiServer.isConnected()) {
@@ -174,68 +181,73 @@ void loop() {
   }
 
   if (!menuInitialized) {
-    display.showText("Setting up Main Menu");
     display.setMenu(rootSensorsMenu);
 
-    delay(500);
+    for (const int ledPin : ledPins) {
+      analogWrite(ledPin, 255);
+    }
 
     const JsonObject currentMenu = display.getMenu();
-    printHeapInfo();
 
-    if (currentMenu.isNull()) {
-      display.showText("Invalid JSON Object");
-      while (true);
-    }
-
-    if (!currentMenu.containsKey("data")) {
-      display.showText("Failed to get menu data");
-    }
+    Utils::validateMenu(currentMenu);
 
     const JsonArray menuData = currentMenu["data"];
-    printHeapInfo();
-    delay(500);
     maxEncoderValue = static_cast<int>(menuData.size());
     oldPosition = -999;
     display.clear();
     menuInitialized = true;
   }
 
-  const bool isButtonPressed = debounceButton(ENCODER_BUTTON_PIN, lastDebounceTime);
-
   /*
-  ** Get encoder data
+  ** Get current menu data
   */
-  long rawPosition = myEnc.read();
-  const bool isFullTurn = rawPosition % 4 == 0;
   const JsonObject currentMenu = display.getMenu();
-
   const JsonArray currentMenuData = currentMenu["data"].as<JsonArray>();
-  const char *currentMenuLabel = currentMenu["label"];
 
   /*
    * Menu logic if encoder turns
    */
+  long rawPosition = myEnc.read();
+  const bool isFullTurn = rawPosition % 4 == 0;
+  const char *currentMenuLabel = currentMenu["label"];
+  const char *currentMenuId = currentMenu["id"];
+
   if (isFullTurn) {
     newPosition = ((-rawPosition / 4) % maxEncoderValue + maxEncoderValue) % maxEncoderValue;
 
     if (newPosition != oldPosition) {
       oldPosition = newPosition;
-      const auto label = currentMenuData[newPosition]["label"];
+      const std::string label = currentMenuData[newPosition]["label"];
       auto value = currentMenuData[newPosition]["value"];
 
       if (value && currentMenuLabel) {
         if (value.is<int>()) {
           value = std::to_string(value.as<int>());
         }
-        display.renderMultilineText(currentMenuLabel, value);
+
+        std::string labelToPrint = "| " + std::string(currentMenuLabel) + " |";
+        std::string possibleDecoratedLabel = label;
+
+        const std::string castedValue = value;
+
+        if (std::string(currentMenuId) == selectedOption.id && castedValue == selectedOption.value &&
+            newPosition == selectedOption.selectedIndex) {
+          possibleDecoratedLabel = "* " + label + " *";
+        }
+
+        display.renderMultilineText({ labelToPrint.c_str(), possibleDecoratedLabel.c_str() });
       } else {
-        display.showText(label.as<const char *>());
+        display.showText(label.c_str());
       }
     }
   }
 
-  if (isButtonPressed) {
-    delay(750);  // TODO: implement debounce
+  if (encoderBtn.isLongPressed()) {
+    goBack(currentMenuId);
+    return;
+  }
+
+  if (encoderBtn.isDebounced()) {
     const JsonObject nestedSubMenu = currentMenuData[newPosition]["submenu"];
 
     if (nestedSubMenu) {
@@ -251,27 +263,27 @@ void loop() {
       maxEncoderValue = static_cast<int>(newSelectedMenu["data"].size());
       newPosition = 0;
       oldPosition = -999;
-      showMultiline = false;
     } else {
-      // showMultiline = true;
       const auto dataItem = currentMenuData[newPosition];
 
       if (dataItem) {
-        const auto menuLabel = dataItem["label"];
+        const std::string menuLabel = dataItem["label"];
         auto value = dataItem["value"];
 
         if (value.is<int>()) {
           value = std::to_string(value.as<int>());
         }
 
-        // const std::string printData = "* " + std::string(menuLabel.as<const char *>()) + " *";
-        // display.showText(printData.c_str());
+        selectedOption = { id : selectedOptionId, label : menuLabel, value : value, selectedIndex : newPosition };
 
-        const SelectedOption selectedOption = { id : selectedOptionId, label : menuLabel, value : value };
-        const std::string labelString = "label: " + selectedOption.label;
+        const std::string selectedValue = "* " + menuLabel + " *";
 
-        display.showText("Value Selected");
-        delay(500);
+        if (currentMenuLabel) {
+          std::string labelToPrint = "| " + std::string(currentMenuLabel) + " |";
+          display.renderMultilineText({ labelToPrint.c_str(), selectedValue.c_str() });
+        } else {
+          display.showText(selectedOption.label.c_str());
+        }
       }
     }
   }

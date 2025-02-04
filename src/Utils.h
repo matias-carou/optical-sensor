@@ -11,6 +11,7 @@
 #include "types.h"
 
 namespace Utils {
+void validateMenu(const JsonObject& currentMenu);
 void printRuntimeOverrallValue(
     int& counter, int& timeBuffer, unsigned long& previousTime, unsigned long& currentTime, uint8_t CYCLES_AMOUNT = 20);
 void checkForI2CDevices(TwoWire* wire);
@@ -18,4 +19,5 @@ void printMidiMessage(uint8_t& byte1, uint8_t& byte2, uint8_t& byte3);
 void blinkDisconnectedLedState(const LedPinsArray ledPins, unsigned long& currentTime, bool& ledToggleState);
 std::string getMicrocontrollerReadableValue();
 void renderMenu(const JsonObject& menuObject, DisplayManager& display);
+void printHeapInfo(const int wait = 500);
 }  // namespace Utils
