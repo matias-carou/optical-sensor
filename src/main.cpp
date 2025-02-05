@@ -20,9 +20,6 @@
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
 #  include <BLEMidi.h>
 #endif
-#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-const int RESET_PIN = 2;
-#endif
 
 std::vector<MidiSensor *> SENSORS = {};
 
@@ -78,9 +75,6 @@ void setup() {
   castedRoot = rootMenu.as<JsonObject>();
   display.setMenu(castedRoot);
 
-  const std::string label = display.getMenu()["label"];
-  const std::string id = display.getMenu()["id"];
-
   // Just for debugging purposes
   // Utils::renderMenu(rootSensorsMenu, display);
 
@@ -91,9 +85,6 @@ void setup() {
 
   SENSORS = MidiSensor::initializeSensors();
 
-#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-  pinMode(RESET_PIN, INPUT_PULLUP);
-#endif
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
   Serial.println("|| ESP32 macro defined, setting up BLE server...");
   BLEMidiServer.begin("el_tuts");
