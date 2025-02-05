@@ -13,7 +13,7 @@ extern DisplayManager& display;
 using namespace std;
 
 namespace Utils {
-void validateMenu(const JsonObject& currentMenu) {
+void validateMenu(JsonDocument& currentMenu) {
   if (currentMenu.isNull()) {
     display.showText("Invalid JSON Object");
     while (true);

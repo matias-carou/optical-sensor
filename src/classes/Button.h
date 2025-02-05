@@ -5,8 +5,6 @@
 
 #include "DisplayManager.h"
 
-#define DEBOUNCE_DELAY 100
-
 const unsigned long LONG_PRESS_THRESHOLD = 1000;
 bool buttonPressed = false;
 extern DisplayManager &display;
@@ -18,8 +16,16 @@ struct Button {
   unsigned long lastDebounceTime;
   unsigned long buttonPressTime = 0;
   bool longPressTriggered = false;
+  int debounceDelay = 75;
 
-  Button(int p) : pin(p), state(HIGH), lastReading(HIGH), lastDebounceTime(0), buttonPressTime(0), longPressTriggered(false) {
+  Button(int p, int debounceDelay)
+      : pin(p),
+        state(HIGH),
+        lastReading(HIGH),
+        lastDebounceTime(0),
+        buttonPressTime(0),
+        longPressTriggered(false),
+        debounceDelay(debounceDelay) {
     pinMode(pin, INPUT_PULLUP);
   }
 
@@ -30,7 +36,7 @@ struct Button {
       lastDebounceTime = millis();
     }
 
-    if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
+    if ((millis() - lastDebounceTime) > debounceDelay) {
       if (reading != state) {
         state = reading;
         if (state == LOW) {

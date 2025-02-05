@@ -1,6 +1,7 @@
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Encoder.h>
 
 #include <regex>
 
@@ -19,7 +20,9 @@
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
 #  include <BLEMidi.h>
 #endif
-#include <Encoder.h>
+#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
+const int RESET_PIN = 2;
+#endif
 
 std::vector<MidiSensor *> SENSORS = {};
 
@@ -27,28 +30,21 @@ const LedPinsArray ledPins = { 2, 3 };
 unsigned long currentTime = 0;
 bool ledToggleState = true;
 
-#if MICROCONTROLLER == MICROCONTROLLER_TEENSY
-const int RESET_PIN = 2;
-#endif
-
 using namespace std;
 using namespace Utils;
 
 DisplayManager &display = DisplayManager::getInstance();
 
-#define CLK_PIN 21            // Connect to Pin 1 (CLK)
-#define DT_PIN 20             // Connect to Pin 2 (DT)
-#define ENCODER_BUTTON_PIN 4  // Connect to Pin 4 (SW)
+Encoder myEnc(ENCODER_CLK_PIN, ENCODER_DT_PIN);
+Button encoderBtn(ENCODER_BUTTON_PIN, DEBOUNCE_DELAY);
 
-Encoder myEnc(CLK_PIN, DT_PIN);
-Button encoderBtn(ENCODER_BUTTON_PIN);
-
-JsonDocument oledConfigDoc;
+JsonDocument rootMenu;
 JsonObject rootSensorsMenu;
+JsonObject castedRoot;
 
-JsonDocument parseJson(JsonDocument &docToRead) {
-  const auto nestingLimit = DeserializationOption::NestingLimit(15);
-  DeserializationError error = deserializeJson(oledConfigDoc, MENU_CONFIG, nestingLimit);
+JsonDocument parseJson() {
+  const auto nestingLimit = DeserializationOption::NestingLimit(30);
+  DeserializationError error = deserializeJson(rootMenu, MENU_CONFIG, nestingLimit);
 
   if (error) {
     display.showText("Json Parse Failed");
@@ -56,12 +52,7 @@ JsonDocument parseJson(JsonDocument &docToRead) {
     while (true);
   }
 
-  if (!docToRead.is<JsonArray>()) {
-    display.showText("Root JSON Not Iterable");
-    while (true);
-  }
-
-  return docToRead;
+  return rootMenu;
 }
 
 void setup() {
@@ -76,25 +67,19 @@ void setup() {
 
   display.showText("Getting OLED Config...");
 
-  parseJson(oledConfigDoc);
+  parseJson();
 
   display.showText("Parsed OLED Config...");
-  Utils::printHeapInfo(2000);
 
-  if (!oledConfigDoc.is<JsonArray>()) {
-    display.showText("Root JSON Not Iterable");
-    while (true);
-  }
+  Utils::validateMenu(rootMenu);
 
-  rootSensorsMenu = oledConfigDoc[0]["submenu"].as<JsonObject>();
+  Utils::printHeapInfo(500);
 
-  if (rootSensorsMenu.isNull()) {
-    display.showText("OLED Parse Failed");
-    while (true);
-  }
+  castedRoot = rootMenu.as<JsonObject>();
+  display.setMenu(castedRoot);
 
-  display.setMenu(rootSensorsMenu);
-  const JsonArray menuData = display.getMenu()["data"];
+  const std::string label = display.getMenu()["label"];
+  const std::string id = display.getMenu()["id"];
 
   // Just for debugging purposes
   // Utils::renderMenu(rootSensorsMenu, display);
@@ -158,69 +143,77 @@ const char *selectedOptionId = "";
 
 SelectedOption selectedOption = { id : "", label : "", value : "", selectedIndex : 0 };
 
-void goBack(const char *currentMenuId) {
-  if (currentMenuId) {
-    const std::string parsedId = std::string(currentMenuId);
-    const std::regex subMenuPattern("\\.[^.]+$");
-    std::string output = std::regex_replace(parsedId, subMenuPattern, "");
-    display.showText(output.c_str());
-    delay(1000);
-  }
-}
-
-void runDisconnectedState() {
-  menuInitialized = false;
-  DisplayManager::displayAnimation(DISCONNECTED_FRAMES);
-  blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
-}
-
-void initializeMenu(bool &menuInitialized) {
-  display.setMenu(rootSensorsMenu);
-
-  for (const int ledPin : ledPins) {
-    analogWrite(ledPin, 255);
-  }
-
+void handleButtonLongPress() {
   const JsonObject currentMenu = display.getMenu();
+  const char *currentMenuId = currentMenu["id"].as<const char *>();
 
-  Utils::validateMenu(currentMenu);
+  if (!currentMenuId) {
+    display.showText("Item ID Not Found");
+    return;
+  }
 
-  const JsonArray menuData = currentMenu["data"];
-  maxEncoderValue = static_cast<int>(menuData.size());
-  oldPosition = -999;
-  display.clear();
-  menuInitialized = true;
+  const std::string parsedId = std::string(currentMenuId);
+  const std::regex subMenuPattern("\\.[^.]+$");
+  std::string output = std::regex_replace(parsedId, subMenuPattern, "");
+  display.showText(output.c_str());
+  delay(1000);
 }
 
-/*
- * TODO: implement JSON indexing
- */
-// const JsonDocument indexedDoc = parseSensorsMenu(oledConfigDoc);
+void handleButtonPress() {
+  const JsonArray currentMenuData = display.getMenu()["data"];
 
-void loop() {
-  if (!BLEMidiServer.isConnected()) {
-    return runDisconnectedState();
+  if (currentMenuData.size() > 0) {
+    const JsonObject nestedSubMenu = currentMenuData[newPosition];
+    const JsonArray hasMoreData = nestedSubMenu["data"];
+
+    if (hasMoreData) {
+      JsonObject newSelectedMenu = nestedSubMenu;
+      display.setMenu(newSelectedMenu);
+
+      if (newSelectedMenu["id"]) {
+        selectedOptionId = newSelectedMenu["id"];
+      } else {
+        display.showText("Failed to get ID");
+      }
+
+      maxEncoderValue = static_cast<int>(newSelectedMenu["data"].size());
+      newPosition = 0;
+      oldPosition = -999;
+    } else {
+      const auto dataItem = currentMenuData[newPosition];
+
+      if (dataItem) {
+        const std::string menuLabel = dataItem["label"];
+        auto value = dataItem["value"];
+
+        if (value.is<int>()) {
+          value = std::to_string(value.as<int>());
+        }
+
+        selectedOption = { id : selectedOptionId, label : menuLabel, value : value, selectedIndex : newPosition };
+
+        const std::string selectedValue = "* " + menuLabel + " *";
+
+        const std::string currentLabel = display.getMenu()["label"];
+
+        if (!currentLabel.empty()) {
+          std::string labelToPrint = "| " + currentLabel + " |";
+          display.renderMultilineText({ labelToPrint.c_str(), selectedValue.c_str() });
+        } else {
+          display.showText(selectedOption.label.c_str());
+        }
+      }
+    }
   }
+}
 
-  if (!menuInitialized) {
-    initializeMenu(menuInitialized);
-  }
-
-  /*
-  ** Get current menu data
-  */
+void handleButtonMovement(const long rawPosition) {
   const JsonObject currentMenu = display.getMenu();
-  const JsonArray currentMenuData = currentMenu["data"].as<JsonArray>();
+  const JsonArray currentMenuData = currentMenu["data"];
 
-  /*
-   * Menu logic if encoder turns
-   */
-  long rawPosition = myEnc.read();
-  const bool isFullTurn = rawPosition % 4 == 0;
-  const char *currentMenuLabel = currentMenu["label"];
-  const char *currentMenuId = currentMenu["id"];
-
-  if (isFullTurn) {
+  if (currentMenuData.size() > 0) {
+    const char *currentMenuLabel = currentMenu["label"];
+    const char *currentMenuId = currentMenu["id"];
     newPosition = ((-rawPosition / 4) % maxEncoderValue + maxEncoderValue) % maxEncoderValue;
 
     if (newPosition != oldPosition) {
@@ -254,53 +247,15 @@ void loop() {
       }
     }
   }
+}
 
-  if (encoderBtn.isLongPressed()) {
-    goBack(currentMenuId);
-    return;
-  }
+void runDisconnectedState(bool &menuInitialized) {
+  menuInitialized = false;
+  DisplayManager::displayAnimation(DISCONNECTED_FRAMES);
+  blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
+}
 
-  if (encoderBtn.isDebounced()) {
-    const JsonObject nestedSubMenu = currentMenuData[newPosition]["submenu"];
-
-    if (nestedSubMenu) {
-      JsonObject newSelectedMenu = nestedSubMenu;
-      display.setMenu(newSelectedMenu);
-
-      if (!newSelectedMenu["id"]) {
-        display.showText("Failed to get menu ID");
-        delay(500);
-      }
-
-      selectedOptionId = newSelectedMenu["id"];
-      maxEncoderValue = static_cast<int>(newSelectedMenu["data"].size());
-      newPosition = 0;
-      oldPosition = -999;
-    } else {
-      const auto dataItem = currentMenuData[newPosition];
-
-      if (dataItem) {
-        const std::string menuLabel = dataItem["label"];
-        auto value = dataItem["value"];
-
-        if (value.is<int>()) {
-          value = std::to_string(value.as<int>());
-        }
-
-        selectedOption = { id : selectedOptionId, label : menuLabel, value : value, selectedIndex : newPosition };
-
-        const std::string selectedValue = "* " + menuLabel + " *";
-
-        if (currentMenuLabel) {
-          std::string labelToPrint = "| " + std::string(currentMenuLabel) + " |";
-          display.renderMultilineText({ labelToPrint.c_str(), selectedValue.c_str() });
-        } else {
-          display.showText(selectedOption.label.c_str());
-        }
-      }
-    }
-  }
-
+void runSensors() {
   for (MidiSensor *SENSOR : SENSORS) {
     if (!SENSOR->isSwitchActive()) {
       continue;
@@ -308,6 +263,64 @@ void loop() {
 
     SENSOR->run();
   }
+}
+
+void initializeMenu(bool &menuInitialized) {
+  display.setMenu(castedRoot);
+
+  for (const int ledPin : ledPins) {
+    analogWrite(ledPin, 255);
+  }
+
+  maxEncoderValue = static_cast<int>(display.getMenu()["data"].size());
+  oldPosition = -999;
+  display.clear();
+  menuInitialized = true;
+}
+
+/*
+ * TODO: implement JSON indexing
+ */
+// const JsonDocument indexedDoc = parseSensorsMenu(oledConfigDoc);
+
+void runEncoderHandler() {
+  const long rawPosition = myEnc.read();
+  const bool isFullTurn = rawPosition % 4 == 0;
+
+  if (isFullTurn) {
+    handleButtonMovement(rawPosition);
+  }
+
+  if (encoderBtn.isLongPressed()) {
+    handleButtonLongPress();
+  }
+
+  if (encoderBtn.isDebounced()) {
+    handleButtonPress();
+  }
+}
+
+void loop() {
+  /*
+   ** Run Disconnected (Advertising) State
+   */
+  if (!BLEMidiServer.isConnected()) {
+    return runDisconnectedState(menuInitialized);
+  }
+
+  if (!menuInitialized) {
+    initializeMenu(menuInitialized);
+  }
+
+  /*
+  ** Everything related to the menu + encoder logic
+  */
+  runEncoderHandler();
+
+  /*
+  ** Run all sensors
+  */
+  runSensors();
 
   delayMicroseconds(500);
 }

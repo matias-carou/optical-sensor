@@ -11,7 +11,7 @@
 #include "types.h"
 
 namespace Utils {
-void validateMenu(const JsonObject& currentMenu);
+void validateMenu(JsonDocument& currentMenu);
 void printRuntimeOverrallValue(
     int& counter, int& timeBuffer, unsigned long& previousTime, unsigned long& currentTime, uint8_t CYCLES_AMOUNT = 20);
 void checkForI2CDevices(TwoWire* wire);
