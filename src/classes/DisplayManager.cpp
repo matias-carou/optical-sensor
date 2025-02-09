@@ -28,6 +28,16 @@ void DisplayManager::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int
   display.display();
 }
 
+void DisplayManager::renderBitmap(const unsigned char frame[]) {
+  display.clearDisplay();
+  display.drawBitmap(32, 0, frame, 64, 64, WHITE); // TODO: make this dynamic
+  display.display();
+}
+
+void DisplayManager::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+  display.fillRect(x, y, w, h, color);
+}
+
 void DisplayManager::setMenu(JsonObject submenu) {
   menu = submenu;
 }
@@ -63,59 +73,83 @@ void DisplayManager::showText(const char* text, const bool clearDisplay) {
   display.display();
 }
 
-// TODO: Iterate
-void DisplayManager::renderMultilineText(std::initializer_list<const char*> lines, const bool clearDisplay) {
+void DisplayManager::renderMultilineText(std::initializer_list<const char*> filterLines,
+                                         std::initializer_list<const char*> optionLines,
+                                         const bool clearDisplay) {
+  display.setTextSize(1);
+
   if (clearDisplay) {
     display.clearDisplay();
   }
 
   const int SPACING = 2;
+  const int FILTER_HEIGHT = SCREEN_HEIGHT / 6;  // Reserve 1/6 of the screen for the Filter section
+  const int OPTION_HEIGHT = SCREEN_HEIGHT - FILTER_HEIGHT;
 
-  int totalTextHeight = 0;
-  std::vector<uint16_t> lineHeights;
-  lineHeights.reserve(lines.size());
+  // Render the Filter section
+  int filterTextHeight = 0;
+  std::vector<uint16_t> filterLineHeights;
+  filterLineHeights.reserve(filterLines.size());
 
-  for (const char* line : lines) {
+  for (const char* line : filterLines) {
     int16_t dummyX, dummyY;
     uint16_t width, height;
     display.getTextBounds(line, 0, 0, &dummyX, &dummyY, &width, &height);
-    lineHeights.push_back(height);
-    totalTextHeight += height;
+    filterLineHeights.push_back(height);
+    filterTextHeight += height;
   }
 
-  totalTextHeight += SPACING * (lines.size() - 1);
+  filterTextHeight += SPACING * (filterLines.size() - 1);
+  int filterYPos = (FILTER_HEIGHT - filterTextHeight) / 2;
 
-  int yPos = (SCREEN_HEIGHT - totalTextHeight) / 2;
-
-  struct lineObject {
-    const char* line;
-    int textSize = 1;
-
-    lineObject(const char* l, int ts = 1) : line(l), textSize(ts) {
-    }
-  };
-
-  std::vector<lineObject> arr;
-
-  int textSize = 1;
-
-  for (const char* line : lines) {
-    arr.push_back(lineObject(line));
-  }
-
-  auto heightIt = lineHeights.begin();
-  for (const lineObject lineData : arr) {
-    display.setTextSize(lineData.textSize);
+  for (const char* line : filterLines) {
     int16_t x, y;
     uint16_t width, height;
-    display.getTextBounds(lineData.line, 0, 0, &x, &y, &width, &height);
+    display.getTextBounds(line, 0, 0, &x, &y, &width, &height);
 
     int centerX = (SCREEN_WIDTH - width) / 2;
-    display.setCursor(centerX, yPos);
-    display.println(lineData.line);
+    display.setCursor(centerX, filterYPos);
+    display.println(line);
 
-    yPos += height + SPACING;
-    ++heightIt;
+    filterYPos += height + SPACING;
+  }
+
+  const int LINE_SPACING = 4;
+  int lineYPos = FILTER_HEIGHT + LINE_SPACING;
+  int lineWidth = SCREEN_WIDTH - 16;                // Set desired line width (adjust as needed)
+  int lineStartX = (SCREEN_WIDTH - lineWidth) / 2;  // Center the line horizontally
+  int lineEndX = lineStartX + lineWidth;
+
+  // Draw the separator line
+  display.drawLine(lineStartX, lineYPos, lineEndX, lineYPos, SSD1306_WHITE);
+
+  // Render the Option section
+  int optionTextHeight = 0;
+  std::vector<uint16_t> optionLineHeights;
+  optionLineHeights.reserve(optionLines.size());
+  // display.setTextSize(2);
+
+  for (const char* line : optionLines) {
+    int16_t dummyX, dummyY;
+    uint16_t width, height;
+    display.getTextBounds(line, 0, 0, &dummyX, &dummyY, &width, &height);
+    optionLineHeights.push_back(height);
+    optionTextHeight += height;
+  }
+
+  optionTextHeight += SPACING * (optionLines.size() - 1);
+  int optionYPos = FILTER_HEIGHT + (OPTION_HEIGHT - optionTextHeight) / 2;
+
+  for (const char* line : optionLines) {
+    int16_t x, y;
+    uint16_t width, height;
+    display.getTextBounds(line, 0, 0, &x, &y, &width, &height);
+
+    int centerX = (SCREEN_WIDTH - width) / 2;
+    display.setCursor(centerX, optionYPos);
+    display.println(line);
+
+    optionYPos += height + SPACING;
   }
 
   display.display();

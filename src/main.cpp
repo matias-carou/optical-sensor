@@ -9,10 +9,12 @@
 #include "Config.h"
 #include "I2Cdev.h"
 #include "Utils.h"
+#include "classes/ActionService.h"
 #include "classes/Button.h"
 #include "classes/DisplayManager.h"
 #include "classes/MidiSensor.h"
 #include "constants/MenuConfig.h"
+#include "constants/animations/Burger.h"
 #include "constants/animations/DisconnectedState.h"
 #include "esp_heap_caps.h"
 #include "types.h"
@@ -31,6 +33,7 @@ using namespace std;
 using namespace Utils;
 
 DisplayManager &display = DisplayManager::getInstance();
+ActionService &actionService = ActionService::getInstance();
 
 Encoder myEnc(ENCODER_CLK_PIN, ENCODER_DT_PIN);
 Button encoderBtn(ENCODER_BUTTON_PIN, DEBOUNCE_DELAY);
@@ -44,7 +47,7 @@ JsonDocument parseJson() {
   DeserializationError error = deserializeJson(rootMenu, MENU_CONFIG, nestingLimit);
 
   if (error) {
-    display.showText("Json Parse Failed");
+    display.showText("Failed to Parse Menu");
     Serial.println(error.f_str());
     while (true);
   }
@@ -62,26 +65,17 @@ void setup() {
 
   display.init();
 
-  display.showText("Getting OLED Config...");
-
   parseJson();
-
-  display.showText("Parsed OLED Config...");
 
   Utils::validateMenu(rootMenu);
 
-  Utils::printHeapInfo(500);
+  // Utils::printHeapInfo(500);
 
   castedRoot = rootMenu.as<JsonObject>();
   display.setMenu(castedRoot);
 
   // Just for debugging purposes
   // Utils::renderMenu(rootSensorsMenu, display);
-
-  const string microControllerValue = Utils::getMicrocontrollerReadableValue();
-
-  const string str = "|| Running code for microcontroller " + microControllerValue;
-  Serial.println(str.c_str());
 
   SENSORS = MidiSensor::initializeSensors();
 
@@ -90,10 +84,6 @@ void setup() {
   BLEMidiServer.begin("el_tuts");
 
   BLEMidiServer.setOnConnectCallback([]() {
-    Serial.println("BLE Controller connected!");
-    display.showText("| Connected |");
-    display.setTextSize(1);
-
     for (const int ledPin : ledPins) {
       analogWrite(ledPin, 255);
     }
@@ -106,16 +96,9 @@ void setup() {
 #endif
 
   analogReadResolution(10);
-
-  Serial.println("|| (>':')> System ready <(':'<) ||\n");
 }
 
 long oldPosition = -999;
-
-// TODO: implement, either way encoder click is pretty stable
-bool debounceButton(int pin, unsigned long &previousTime) {
-  return !digitalRead(pin);
-}
 
 unsigned long prevDisconnectedTime = 0;
 
@@ -123,16 +106,8 @@ bool menuInitialized = false;
 int maxEncoderValue = -999;
 int32_t newPosition = 0;
 
-struct SelectedOption {
-  std::string id;
-  std::string label;
-  std::string value;
-  int32_t selectedIndex;
-};
-
+SelectedOption selectedOption = { id : "", label : "", value : "", dependencies : {}, selectedIndex : 0 };
 const char *selectedOptionId = "";
-
-SelectedOption selectedOption = { id : "", label : "", value : "", selectedIndex : 0 };
 
 void handleButtonLongPress() {
   const JsonObject currentMenu = display.getMenu();
@@ -147,7 +122,6 @@ void handleButtonLongPress() {
   const std::regex subMenuPattern("\\.[^.]+$");
   std::string output = std::regex_replace(parsedId, subMenuPattern, "");
   display.showText(output.c_str());
-  delay(1000);
 }
 
 void handleButtonPress() {
@@ -181,15 +155,34 @@ void handleButtonPress() {
           value = std::to_string(value.as<int>());
         }
 
-        selectedOption = { id : selectedOptionId, label : menuLabel, value : value, selectedIndex : newPosition };
+        if (!display.getMenu()["dependencies"]) {
+          display.showText("Dependencies N/A");
+          delay(500);
+          return;
+        }
+
+        std::vector<std::string> dependencies;
+        const JsonArray jsonDependencies = display.getMenu()["dependencies"];
+        dependencies.reserve(jsonDependencies.size());
+        for (const auto &value : jsonDependencies) {
+          dependencies.push_back(value.as<const char *>());
+        }
+
+        selectedOption = {
+          id : selectedOptionId,
+          label : menuLabel,
+          value : value,
+          dependencies : dependencies,
+          selectedIndex : newPosition,
+        };
+
+        actionService.dispatchAction(SENSORS, selectedOption);
 
         const std::string selectedValue = "* " + menuLabel + " *";
-
         const std::string currentLabel = display.getMenu()["label"];
 
         if (!currentLabel.empty()) {
-          std::string labelToPrint = "| " + currentLabel + " |";
-          display.renderMultilineText({ labelToPrint.c_str(), selectedValue.c_str() });
+          display.renderMultilineText({ currentLabel.c_str() }, { selectedValue.c_str() });
         } else {
           display.showText(selectedOption.label.c_str());
         }
@@ -213,7 +206,7 @@ void handleButtonMovement(const long rawPosition) {
       auto value = currentMenuData[newPosition]["value"];
 
       if (currentMenuLabel) {
-        std::string labelToPrint = "| " + std::string(currentMenuLabel) + " |";
+        std::string labelToPrint = std::string(currentMenuLabel);
 
         if (value && currentMenuLabel) {
           if (value.is<int>()) {
@@ -229,9 +222,11 @@ void handleButtonMovement(const long rawPosition) {
             possibleDecoratedLabel = "* " + label + " *";
           }
 
-          display.renderMultilineText({ labelToPrint.c_str(), possibleDecoratedLabel.c_str() });
+          const std::string rootReplace = std::regex_replace(labelToPrint, std::regex("(root\\.)"), "");
+          const std::string breadcrumbs = std::regex_replace(rootReplace, std::regex("(\\.)"), " > ");
+          display.renderMultilineText({ breadcrumbs.c_str() }, { possibleDecoratedLabel.c_str() });
         } else {
-          display.renderMultilineText({ labelToPrint.c_str(), label.c_str() });
+          display.renderMultilineText({ labelToPrint.c_str() }, { label.c_str() });
         }
       } else {
         display.showText(label.c_str());
@@ -268,11 +263,6 @@ void initializeMenu(bool &menuInitialized) {
   display.clear();
   menuInitialized = true;
 }
-
-/*
- * TODO: implement JSON indexing
- */
-// const JsonDocument indexedDoc = parseSensorsMenu(oledConfigDoc);
 
 void runEncoderHandler() {
   const long rawPosition = myEnc.read();

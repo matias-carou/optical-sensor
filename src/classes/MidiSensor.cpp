@@ -337,8 +337,9 @@ int16_t MidiSensor::runExponentialFilter(float alpha) {
 }
 
 int16_t MidiSensor::runLowPassFilter() {
-  this->averageValue += (this->currentRawValue - this->averageValue) / this->filterWeight;
-  return static_cast<int16_t>(std::round(this->averageValue));
+  const float alpha = 1.0f / filterWeight;  // Smoothing factor
+  averageValue = (alpha * currentRawValue) + ((1.0f - alpha) * averageValue);
+  return static_cast<int16_t>(std::round(averageValue));
 }
 
 void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
@@ -381,6 +382,18 @@ void MidiSensor::runFilterLogic() {
   }
 
   filterFunctionToRun->second();
+}
+
+void MidiSensor::setFilterWeight(int value) {
+  this->filterWeight = value;
+}
+
+void MidiSensor::setFloor(int value) {
+  this->floorThreshold = value;
+}
+
+void MidiSensor::setCeil(int value) {
+  this->ceilThreshold = value;
 }
 
 void MidiSensor::run() {

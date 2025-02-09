@@ -29,7 +29,7 @@ void printHeapInfo(const int wait) {
   const std::string freeHeap = "Free Heap: " + to_string(ESP.getFreeHeap());
   const std::string usedHeap = "Used Heap: " + to_string(ESP.getHeapSize() - ESP.getFreeHeap());
   const std::string largestFreeBlock = "Largest Free: " + to_string(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-  display.renderMultilineText({ totalHeap.c_str(), freeHeap.c_str(), usedHeap.c_str(), largestFreeBlock.c_str() });
+  // display.renderMultilineText({ totalHeap.c_str(), freeHeap.c_str(), usedHeap.c_str(), largestFreeBlock.c_str() });
   delay(wait);
 }
 // TODO: Make This Recursive + add to the Display Manager class

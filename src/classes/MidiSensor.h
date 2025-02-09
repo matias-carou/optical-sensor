@@ -110,6 +110,9 @@ class MidiSensor {
   void setCurrentValue(uint8_t value);
   void setPreviousValue(uint8_t value);
   void setMeasuresCounter(uint8_t value);
+  void setFilterWeight(int value);
+  void setFloor(int value);
+  void setCeil(int value);
   void setDataBuffer(int16_t value);
   void setThreshold(uint8_t value);
   void setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings);
@@ -154,6 +157,18 @@ class MidiSensor {
 #endif
 
     return ports;
+  }
+
+  static std::vector<MidiSensor *> getSensorsByDependency(const std::vector<MidiSensor *> &sensors, TDependency &dependencies) {
+    std::vector<MidiSensor *> filteredSensors;
+    for (MidiSensor *sensor : sensors) {
+      const std::string sensorType = sensor->getSensorType();
+      if (std::find(dependencies.begin(), dependencies.end(), sensorType) != dependencies.end()) {
+        filteredSensors.push_back(sensor);
+      }
+    }
+
+    return filteredSensors;
   }
 
   static std::vector<MidiSensor *> initializeSensors() {
