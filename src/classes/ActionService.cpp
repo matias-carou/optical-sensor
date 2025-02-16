@@ -47,6 +47,7 @@ void ActionService::dispatchAction(std::vector<MidiSensor *> &sensors, SelectedO
 
   if (filteredSensors.empty()) {
     display.getInstance().showText("No Sensors Found");
+    delay(500);
     return;
   }
 
@@ -61,8 +62,5 @@ void ActionService::dispatchAction(std::vector<MidiSensor *> &sensors, SelectedO
     }
 
     matchedFunction->second(sensor, selectedOption);
-
-    display.getInstance().renderMultilineText({ "Value Updated" }, { sensorType.c_str() });
-    delay(100);
   }
 }

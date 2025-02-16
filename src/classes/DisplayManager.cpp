@@ -30,12 +30,21 @@ void DisplayManager::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int
 
 void DisplayManager::renderBitmap(const unsigned char frame[]) {
   display.clearDisplay();
-  display.drawBitmap(32, 0, frame, 64, 64, WHITE); // TODO: make this dynamic
+  display.drawBitmap(32, 0, frame, 64, 64, WHITE);  // TODO: make this dynamic
   display.display();
 }
 
 void DisplayManager::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
   display.fillRect(x, y, w, h, color);
+}
+
+// TODO: Actually implement or remove this
+void DisplayManager::setPreviousMenu(JsonObject menu) {
+  previousMenu = menu;
+}
+
+JsonObject DisplayManager::getPreviousMenu() {
+  return previousMenu;
 }
 
 void DisplayManager::setMenu(JsonObject submenu) {

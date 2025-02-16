@@ -118,23 +118,33 @@ void handleButtonLongPress() {
     return;
   }
 
-  const std::string parsedId = std::string(currentMenuId);
-  const std::regex subMenuPattern("\\.[^.]+$");
-  std::string output = std::regex_replace(parsedId, subMenuPattern, "");
-  display.showText(output.c_str());
+  display.setMenu(castedRoot);
+  display.showText("Back to Root...");
+  delay(250);
+  const std::string previousMenuLabel = castedRoot["label"];
+  const std::string label = castedRoot["data"][0]["label"];
+  display.renderMultilineText({ previousMenuLabel.c_str() }, { label.c_str() });
+  maxEncoderValue = static_cast<int>(castedRoot["data"].size());
+
+  // const std::string parsedId = std::string(currentMenuId);
+  // const std::regex subMenuPattern("\\.[^.]+$");
+  // std::string output = std::regex_replace(parsedId, subMenuPattern, "");
+  // display.showText(output.c_str());
+  // }
 }
 
 void handleButtonPress() {
-  const JsonArray currentMenuData = display.getMenu()["data"];
+  const JsonObject currentMenu = display.getMenu();
+  const JsonArray currentMenuData = currentMenu["data"];
 
   if (currentMenuData.size() > 0) {
     const JsonObject nestedSubMenu = currentMenuData[newPosition];
     const JsonArray hasMoreData = nestedSubMenu["data"];
 
     if (hasMoreData) {
+      // display.setPreviousMenu(currentMenu); // TODO: figure out how to actually handle this
       JsonObject newSelectedMenu = nestedSubMenu;
       display.setMenu(newSelectedMenu);
-
       if (newSelectedMenu["id"]) {
         selectedOptionId = newSelectedMenu["id"];
       } else {
@@ -155,14 +165,14 @@ void handleButtonPress() {
           value = std::to_string(value.as<int>());
         }
 
-        if (!display.getMenu()["dependencies"]) {
+        if (!currentMenu["dependencies"]) {
           display.showText("Dependencies N/A");
           delay(500);
           return;
         }
 
         std::vector<std::string> dependencies;
-        const JsonArray jsonDependencies = display.getMenu()["dependencies"];
+        const JsonArray jsonDependencies = currentMenu["dependencies"];
         dependencies.reserve(jsonDependencies.size());
         for (const auto &value : jsonDependencies) {
           dependencies.push_back(value.as<const char *>());
@@ -274,9 +284,7 @@ void runEncoderHandler() {
 
   if (encoderBtn.isLongPressed()) {
     handleButtonLongPress();
-  }
-
-  if (encoderBtn.isDebounced()) {
+  } else if (encoderBtn.isDebounced()) {
     handleButtonPress();
   }
 }

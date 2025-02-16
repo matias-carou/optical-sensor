@@ -81,7 +81,7 @@ std::map<std::string, std::function<int16_t()>> MidiSensor::getMeasureMethods() 
 
     return 0;
   };
-  measureMethods["infrared"] = [this]() {
+  measureMethods["infrared"] = [this]() -> int16_t {
     if (!!this->infraredSensor) {
       VL53L0X_RangingMeasurementData_t measure;
 

@@ -48,11 +48,13 @@ class DisplayManager {
                            std::initializer_list<const char*> optionLines,
                            const bool clearDisplay = true);
   JsonObject getMenu();
+  JsonObject getPreviousMenu();
+  void setPreviousMenu(JsonObject previousMenu);
 
  private:
   Adafruit_SSD1306 display;
   JsonObject menu;
-
+  JsonObject previousMenu;
   DisplayManager();  // Private constructor
   ~DisplayManager() = default;
   DisplayManager(const DisplayManager&) = delete;
