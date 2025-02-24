@@ -14,6 +14,7 @@ class ActionService {
     return instance;
   }
 
+  void runSensors(std::vector<MidiSensor *> &sensors);
   void dispatchAction(std::vector<MidiSensor *> &sensors, SelectedOption &selectedOption);
 
  private:

@@ -33,7 +33,6 @@ using namespace std;
 using namespace Utils;
 
 DisplayManager &display = DisplayManager::getInstance();
-ActionService &actionService = ActionService::getInstance();
 
 Encoder myEnc(ENCODER_CLK_PIN, ENCODER_DT_PIN);
 Button encoderBtn(ENCODER_BUTTON_PIN, DEBOUNCE_DELAY);
@@ -125,12 +124,6 @@ void handleButtonLongPress() {
   const std::string label = castedRoot["data"][0]["label"];
   display.renderMultilineText({ previousMenuLabel.c_str() }, { label.c_str() });
   maxEncoderValue = static_cast<int>(castedRoot["data"].size());
-
-  // const std::string parsedId = std::string(currentMenuId);
-  // const std::regex subMenuPattern("\\.[^.]+$");
-  // std::string output = std::regex_replace(parsedId, subMenuPattern, "");
-  // display.showText(output.c_str());
-  // }
 }
 
 void handleButtonPress() {
@@ -139,7 +132,7 @@ void handleButtonPress() {
 
   if (currentMenuData.size() > 0) {
     const JsonObject nestedSubMenu = currentMenuData[newPosition];
-    const JsonArray hasMoreData = nestedSubMenu["data"];
+    const bool hasMoreData = nestedSubMenu["data"] && !!nestedSubMenu["data"].size();
 
     if (hasMoreData) {
       // display.setPreviousMenu(currentMenu); // TODO: figure out how to actually handle this
@@ -165,17 +158,16 @@ void handleButtonPress() {
           value = std::to_string(value.as<int>());
         }
 
-        if (!currentMenu["dependencies"]) {
-          display.showText("Dependencies N/A");
-          delay(500);
-          return;
-        }
-
         std::vector<std::string> dependencies;
-        const JsonArray jsonDependencies = currentMenu["dependencies"];
+        const JsonArray jsonDependencies = currentMenu["dependencies"] ? currentMenu["dependencies"] : JsonArray();
         dependencies.reserve(jsonDependencies.size());
         for (const auto &value : jsonDependencies) {
           dependencies.push_back(value.as<const char *>());
+        }
+
+        if (dependencies.empty()) {
+          display.showText("No dependencies found");
+          delay(500);
         }
 
         selectedOption = {
@@ -186,7 +178,7 @@ void handleButtonPress() {
           selectedIndex : newPosition,
         };
 
-        actionService.dispatchAction(SENSORS, selectedOption);
+        ActionService::getInstance().dispatchAction(SENSORS, selectedOption);
 
         const std::string selectedValue = "* " + menuLabel + " *";
         const std::string currentLabel = display.getMenu()["label"];
@@ -251,15 +243,15 @@ void runDisconnectedState(bool &menuInitialized) {
   blinkDisconnectedLedState(ledPins, currentTime, ledToggleState);
 }
 
-void runSensors() {
-  for (MidiSensor *SENSOR : SENSORS) {
-    if (!SENSOR->isSwitchActive()) {
-      continue;
-    }
+// void runSensors() {
+//   for (MidiSensor *SENSOR : SENSORS) {
+//     if (!SENSOR->isSwitchActive()) {
+//       continue;
+//     }
 
-    SENSOR->run();
-  }
-}
+//     SENSOR->run();
+//   }
+// }
 
 void initializeMenu(bool &menuInitialized) {
   display.setMenu(castedRoot);
@@ -309,7 +301,7 @@ void loop() {
   /*
   ** Run all sensors
   */
-  runSensors();
+  ActionService::getInstance().runSensors(SENSORS);
 
   delayMicroseconds(500);
 }

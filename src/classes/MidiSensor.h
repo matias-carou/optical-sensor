@@ -122,6 +122,7 @@ class MidiSensor {
   void run();
   void writeContinousMessages();
   std::string getSensorType();
+  void setSensorType(std::string value);
 
   static void setUpSensorPins(std::vector<MidiSensor *> SENSORS) {
     for (MidiSensor *SENSOR : SENSORS) {

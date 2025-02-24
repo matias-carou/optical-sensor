@@ -182,6 +182,10 @@ std::string MidiSensor::getSensorType() {
   return this->sensorType;
 }
 
+void MidiSensor::setSensorType(std::string value) {
+  this->sensorType = value;
+}
+
 bool MidiSensor::isSwitchActive() {
   const bool isSwitchActive = !!this->intPin ? !!digitalRead(this->intPin) : true;
   this->currentSwitchState = isSwitchActive;
@@ -318,6 +322,17 @@ void MidiSensor::sendMidiMessage() {
       }
       if (this->midiMessage == "pitchBend") {
         BLEMidiServer.pitchBend(0, this->lsb, this->msb);
+      }
+
+      // TODO: implement note on/off events with gyro
+      const std::vector<std::string> accelgyroGyroAxis = { "accelgyro_gx", "accelgyro_gy", "accelgyro_gz" };
+
+      const bool isGyroSensor =
+          std::find(accelgyroGyroAxis.begin(), accelgyroGyroAxis.end(), this->sensorType) != accelgyroGyroAxis.end();
+
+      if (isGyroSensor) {
+        // BLEMidiServer.noteOn(0, 60, 127);  // Fixed value since it will be used to trigger samples
+        // BLEMidiServer.noteOff(0, 60, 127);
       }
     }
 #endif
