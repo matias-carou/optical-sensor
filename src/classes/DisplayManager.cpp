@@ -91,10 +91,6 @@ void DisplayManager::renderMultilineText(std::initializer_list<const char*> filt
     display.clearDisplay();
   }
 
-  const int SPACING = 2;
-  const int FILTER_HEIGHT = SCREEN_HEIGHT / 6;  // Reserve 1/6 of the screen for the Filter section
-  const int OPTION_HEIGHT = SCREEN_HEIGHT - FILTER_HEIGHT;
-
   // Render the Filter section
   int filterTextHeight = 0;
   std::vector<uint16_t> filterLineHeights;
@@ -108,8 +104,17 @@ void DisplayManager::renderMultilineText(std::initializer_list<const char*> filt
     filterTextHeight += height;
   }
 
+  const int SPACING = 2;
+  const int FILTER_HEIGHT = SCREEN_HEIGHT / 6;  // Reserve 1/6 of the screen for the Filter section
+  const int OPTION_HEIGHT = SCREEN_HEIGHT - FILTER_HEIGHT;
   filterTextHeight += SPACING * (filterLines.size() - 1);
   int filterYPos = (FILTER_HEIGHT - filterTextHeight) / 2;
+
+  // Check if there are filter lines to render
+  if (!filterLines.size()) {
+    // If no filter lines, set filterYPos to 0
+    filterYPos = 0;
+  }
 
   for (const char* line : filterLines) {
     int16_t x, y;
@@ -129,14 +134,17 @@ void DisplayManager::renderMultilineText(std::initializer_list<const char*> filt
   int lineStartX = (SCREEN_WIDTH - lineWidth) / 2;  // Center the line horizontally
   int lineEndX = lineStartX + lineWidth;
 
-  // Draw the separator line
-  display.drawLine(lineStartX, lineYPos, lineEndX, lineYPos, SSD1306_WHITE);
+  int optionTextHeight = 0;
+  // Draw the separator line only if there are filter lines
+  if (!filterLines.size()) {
+    lineYPos = (SCREEN_HEIGHT - (optionTextHeight + LINE_SPACING)) / 2;  // Center line if no filter
+  } else {
+    display.drawLine(lineStartX, lineYPos, lineEndX, lineYPos, SSD1306_WHITE);
+  }
 
   // Render the Option section
-  int optionTextHeight = 0;
   std::vector<uint16_t> optionLineHeights;
   optionLineHeights.reserve(optionLines.size());
-  // display.setTextSize(2);
 
   for (const char* line : optionLines) {
     int16_t dummyX, dummyY;
@@ -147,7 +155,14 @@ void DisplayManager::renderMultilineText(std::initializer_list<const char*> filt
   }
 
   optionTextHeight += SPACING * (optionLines.size() - 1);
-  int optionYPos = FILTER_HEIGHT + (OPTION_HEIGHT - optionTextHeight) / 2;
+  int optionYPos;
+
+  // Center options if there are no filter lines
+  if (filterLines.size() == 0) {
+    optionYPos = (SCREEN_HEIGHT - optionTextHeight) / 2;  // Center options vertically
+  } else {
+    optionYPos = FILTER_HEIGHT + (OPTION_HEIGHT - optionTextHeight) / 2;  // Center options below filter
+  }
 
   for (const char* line : optionLines) {
     int16_t x, y;

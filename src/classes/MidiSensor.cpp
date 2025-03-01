@@ -144,7 +144,7 @@ bool MidiSensor::isAboveThreshold() {
   return this->measuresCounter % this->filterWeight == 0;
 };
 
-void MidiSensor::setCurrentValue(uint8_t value) {
+void MidiSensor::setCurrentValue(uint16_t value) {
   this->currentValue = value;
 }
 
@@ -162,7 +162,7 @@ void MidiSensor::setMidiMessage(std::string value) {
   this->midiMessage = value;
 }
 
-void MidiSensor::setPreviousValue(uint8_t value) {
+void MidiSensor::setPreviousValue(uint16_t value) {
   this->previousValue = value;
 }
 
@@ -213,7 +213,7 @@ bool MidiSensor::isSwitchDebounced() {
   return true;
 }
 
-int16_t MidiSensor::getCurrentValue() {
+int16_t MidiSensor::getCurrentRawValue() {
   const auto it = this->measureMethods.find(this->sensorType);
   const auto hasMatchingFunction = it != this->measureMethods.end();
 
@@ -249,23 +249,29 @@ std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   return steps;
 }
 
-int MidiSensor::getMappedMidiValue(int16_t actualValue) {
-  if (this->midiMessage == "pitchBend") {
-    const int pitchBendValue = constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
-    int shiftedValue = pitchBendValue << 1;
-    this->msb = highByte(shiftedValue);
-    this->lsb = lowByte(shiftedValue) >> 1;
-    return pitchBendValue;
+int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
+  const std::map<std::string, std::function<int16_t()>> midiMap = {
+    { "pitchBend",
+      [this, actualValue]() {
+        return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
+      } },
+    { "controlChange",
+      [this, actualValue]() { return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127); } }
+  };
+
+  const auto it = midiMap.find(this->midiMessage);
+  if (it != midiMap.end()) {
+    return it->second();
   }
 
-  return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
+  return 0;
 }
 
 void MidiSensor::debounce() {
   if (sensorType == "force") {
     this->previousToggleStatus = this->toggleStatus;
     if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
-      this->currentRawValue = this->getCurrentValue();
+      this->currentRawValue = this->getCurrentRawValue();
       const uint8_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
       this->toggleStatus = !!sensorMappedValue ? true : false;
       this->previousDebounceValue = this->currentDebounceValue;
@@ -317,11 +323,20 @@ void MidiSensor::sendMidiMessage() {
     if (this->currentValue != this->previousValue) {
       if (this->midiMessage == "controlChange") {
         BLEMidiServer.controlChange(0, this->controllerNumber, this->currentValue);
-        // String castedValue = String(this->currentValue);
-        // display.showText(castedValue.c_str());
       }
       if (this->midiMessage == "pitchBend") {
+        const int shiftedValue = this->currentValue << 1;
+        this->msb = highByte(shiftedValue);
+        this->lsb = lowByte(shiftedValue) >> 1;
         BLEMidiServer.pitchBend(0, this->lsb, this->msb);
+        // For display debugging
+        // const std::string rawValue = "Raw: " + std::to_string(this->currentRawValue);
+        // const std::string currentValue = "Current: " + std::to_string(this->currentValue);
+        // const std::string previousValue = "Previous: " + std::to_string(this->previousValue);
+        // const std::string lsbPrint = "LSB: " + std::to_string(this->lsb);
+        // const std::string msbPrint = "MSB: " + std::to_string(this->msb);
+        // display.renderMultilineText(
+        //     {}, { rawValue.c_str(), currentValue.c_str(), previousValue.c_str(), lsbPrint.c_str(), msbPrint.c_str() });
       }
 
       // TODO: implement note on/off events with gyro
@@ -358,7 +373,7 @@ int16_t MidiSensor::runLowPassFilter() {
 }
 
 void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
-  const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+  const uint16_t sensorMappedValue = this->getMappedMidiValue(averageValue);
   this->setPreviousValue(this->currentValue);
   this->setCurrentValue(sensorMappedValue);
   this->debounce();
@@ -412,7 +427,7 @@ void MidiSensor::setCeil(int value) {
 }
 
 void MidiSensor::run() {
-  this->currentRawValue = this->getCurrentValue();
+  this->currentRawValue = this->getCurrentRawValue();
   this->setCurrentDebounceValue(millis());
   this->runFilterLogic();
   this->sendMidiMessage();
