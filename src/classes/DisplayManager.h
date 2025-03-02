@@ -5,6 +5,8 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 
+#include <vector>
+
 #include "constants/animations/DisconnectedState.h"
 
 #define SCREEN_WIDTH 128
@@ -44,8 +46,8 @@ class DisplayManager {
   void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   void renderBitmap(const unsigned char frame[]);
   void setMenu(JsonObject submenu);
-  void renderMultilineText(std::initializer_list<const char*> filterLines,
-                           std::initializer_list<const char*> optionLines,
+  void renderMultilineText(std::vector<const char*> filterLines,
+                           std::vector<const char*> optionLines,
                            const bool clearDisplay = true);
   JsonObject getMenu();
   JsonObject getPreviousMenu();

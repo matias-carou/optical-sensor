@@ -303,5 +303,5 @@ void loop() {
   */
   ActionService::getInstance().runSensors(SENSORS);
 
-  delayMicroseconds(100);
+  delay(1);
 }

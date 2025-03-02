@@ -82,8 +82,8 @@ void DisplayManager::showText(const char* text, const bool clearDisplay) {
   display.display();
 }
 
-void DisplayManager::renderMultilineText(std::initializer_list<const char*> filterLines,
-                                         std::initializer_list<const char*> optionLines,
+void DisplayManager::renderMultilineText(std::vector<const char*> filterLines,
+                                         std::vector<const char*> optionLines,
                                          const bool clearDisplay) {
   display.setTextSize(1);
 

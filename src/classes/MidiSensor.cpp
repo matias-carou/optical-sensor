@@ -136,8 +136,6 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   previousSwitchState = false;
   isDebounced = false;
   counter = 0;
-  msb = 0;
-  lsb = 0;
 }
 
 bool MidiSensor::isAboveThreshold() {
@@ -221,8 +219,8 @@ int16_t MidiSensor::getCurrentRawValue() {
     return it->second();
   }
 
-  const std::string message = "|| Can't get the raw value for the sensor type \"" + this->sensorType + "\"";
-  Serial.println(message.c_str());
+  const std::string message = "Sensor Type: " + this->sensorType;
+  display.renderMultilineText({ "Can't get raw" }, { message.c_str() });
 
   return 0;
 }
@@ -252,11 +250,13 @@ std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
 int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
   const std::map<std::string, std::function<int16_t()>> midiMap = {
     { "pitchBend",
-      [this, actualValue]() {
+      [this, actualValue]() -> int16_t {
         return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
       } },
     { "controlChange",
-      [this, actualValue]() { return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127); } }
+      [this, actualValue]() -> int16_t {
+        return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
+      } }
   };
 
   const auto it = midiMap.find(this->midiMessage);
@@ -320,34 +320,32 @@ void MidiSensor::sendMidiMessage() {
     }
   } else if (midiCommunicationType == "ble") {
 #if MICROCONTROLLER == MICROCONTROLLER_ESP32
+    // Will block the normal menu workflow (for now)
+    const bool debug = false;
+    const std::string rawValue = "Raw: " + std::to_string(this->currentRawValue);
+    const std::string currentValue = "Current: " + std::to_string(this->currentValue);
+    const std::string previousValue = "Previous: " + std::to_string(this->previousValue);
+    std::vector<const char *> valuesToPrint = { rawValue.c_str(), currentValue.c_str(), previousValue.c_str() };
+
     if (this->currentValue != this->previousValue) {
       if (this->midiMessage == "controlChange") {
         BLEMidiServer.controlChange(0, this->controllerNumber, this->currentValue);
       }
       if (this->midiMessage == "pitchBend") {
-        const int shiftedValue = this->currentValue << 1;
-        this->msb = highByte(shiftedValue);
-        this->lsb = lowByte(shiftedValue) >> 1;
-        BLEMidiServer.pitchBend(0, this->lsb, this->msb);
-        // For display debugging
-        // const std::string rawValue = "Raw: " + std::to_string(this->currentRawValue);
-        // const std::string currentValue = "Current: " + std::to_string(this->currentValue);
-        // const std::string previousValue = "Previous: " + std::to_string(this->previousValue);
-        // const std::string lsbPrint = "LSB: " + std::to_string(this->lsb);
-        // const std::string msbPrint = "MSB: " + std::to_string(this->msb);
-        // display.renderMultilineText(
-        //     {}, { rawValue.c_str(), currentValue.c_str(), previousValue.c_str(), lsbPrint.c_str(), msbPrint.c_str() });
+        const int16_t shiftedValue = this->currentValue << 1;
+        const uint8_t msb = highByte(shiftedValue);
+        const uint8_t lsb = lowByte(shiftedValue) >> 1;
+
+        if (debug) {
+          const std::string lsbPrint = "LSB: " + std::to_string(lsb);
+          const std::string msbPrint = "MSB: " + std::to_string(msb);
+          std::vector<const char *> newValues = { lsbPrint.c_str(), msbPrint.c_str() };
+          valuesToPrint.insert(valuesToPrint.end(), newValues.begin(), newValues.end());
+        }
+        BLEMidiServer.pitchBend(0, lsb, msb);
       }
-
-      // TODO: implement note on/off events with gyro
-      const std::vector<std::string> accelgyroGyroAxis = { "accelgyro_gx", "accelgyro_gy", "accelgyro_gz" };
-
-      const bool isGyroSensor =
-          std::find(accelgyroGyroAxis.begin(), accelgyroGyroAxis.end(), this->sensorType) != accelgyroGyroAxis.end();
-
-      if (isGyroSensor) {
-        // BLEMidiServer.noteOn(0, 60, 127);  // Fixed value since it will be used to trigger samples
-        // BLEMidiServer.noteOff(0, 60, 127);
+      if (debug) {
+        display.renderMultilineText({}, valuesToPrint);
       }
     }
 #endif
@@ -373,7 +371,7 @@ int16_t MidiSensor::runLowPassFilter() {
 }
 
 void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
-  const uint16_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+  const int16_t sensorMappedValue = this->getMappedMidiValue(averageValue);
   this->setPreviousValue(this->currentValue);
   this->setCurrentValue(sensorMappedValue);
   this->debounce();
