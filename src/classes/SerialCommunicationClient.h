@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "Config.h"
+#include "configs/Config.h"
 #include "Utils.h"
 
 class SerialCommunicationClient {

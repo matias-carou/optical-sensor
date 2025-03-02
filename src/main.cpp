@@ -6,14 +6,14 @@
 #include <regex>
 
 #include "Adafruit_VL53L0X.h"
-#include "Config.h"
+#include "configs/Config.h"
 #include "I2Cdev.h"
 #include "Utils.h"
 #include "classes/ActionService.h"
 #include "classes/Button.h"
 #include "classes/DisplayManager.h"
 #include "classes/MidiSensor.h"
-#include "constants/MenuConfig.h"
+#include "configs/MenuConfig.h"
 #include "constants/animations/Burger.h"
 #include "constants/animations/DisconnectedState.h"
 #include "esp_heap_caps.h"

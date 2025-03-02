@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
-#include "Config.h"
+#include "configs/Config.h"
 #include "DisplayManager.h"
 #include "MPU6050.h"
 #include "Utils.h"

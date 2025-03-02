@@ -4,7 +4,7 @@
 
 #include <map>
 
-#include "Config.h"
+#include "configs/Config.h"
 #include "I2Cdev.h"
 #include "types.h"
 
