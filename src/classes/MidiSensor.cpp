@@ -25,7 +25,7 @@ static std::map<uint8_t, uint8_t> imuFilterResolution = {
 
 uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
-    { "force", 30 },
+    { "potentiometer", 5 },
   };
   return debounceThresholdValues[type];
 }
@@ -256,7 +256,8 @@ int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
     { "controlChange",
       [this, actualValue]() -> int16_t {
         return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
-      } }
+      } },
+    { "toggle", [this, actualValue]() -> int16_t { return constrain(map(actualValue, 100, 900, 0, 127), 0, 127); } }
   };
 
   const auto it = midiMap.find(this->midiMessage);
@@ -268,11 +269,12 @@ int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
 }
 
 void MidiSensor::debounce() {
-  if (sensorType == "force") {
+  if (sensorType == "potentiometer" && this->midiMessage == "toggle") {
+    this->currentDebounceValue = millis();
     this->previousToggleStatus = this->toggleStatus;
     if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
       this->currentRawValue = this->getCurrentRawValue();
-      const uint8_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
+      const int16_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
       this->toggleStatus = !!sensorMappedValue ? true : false;
       this->previousDebounceValue = this->currentDebounceValue;
     }
@@ -311,7 +313,7 @@ void MidiSensor::sendMidiMessage() {
       }
     }
 
-    if (this->midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
+    if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
       if (this->toggleStatus) {
         SerialCommunicationClient::writeSerialMidiMessage(60, 127, 144, midiBus);
       } else {
@@ -344,6 +346,13 @@ void MidiSensor::sendMidiMessage() {
         }
         BLEMidiServer.pitchBend(0, lsb, msb);
       }
+      if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
+        if (this->toggleStatus) {
+          BLEMidiServer.noteOn(0, 60, 127);
+        } else {
+          BLEMidiServer.noteOff(0, 60, 127);
+        }
+      }
       if (debug) {
         display.renderMultilineText({}, valuesToPrint);
       }
@@ -365,6 +374,9 @@ int16_t MidiSensor::runExponentialFilter(float alpha) {
 }
 
 int16_t MidiSensor::runLowPassFilter() {
+  if (filterWeight == 1) {
+    return currentRawValue;
+  }
   const float alpha = 1.0f / filterWeight;  // Smoothing factor
   averageValue = (alpha * currentRawValue) + ((1.0f - alpha) * averageValue);
   return static_cast<int16_t>(std::round(averageValue));
@@ -426,7 +438,6 @@ void MidiSensor::setCeil(int value) {
 
 void MidiSensor::run() {
   this->currentRawValue = this->getCurrentRawValue();
-  this->setCurrentDebounceValue(millis());
   this->runFilterLogic();
   this->sendMidiMessage();
 }

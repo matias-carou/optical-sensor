@@ -70,6 +70,11 @@ std::map<std::string, std::function<void(MidiSensor *, SelectedOption &)>> Actio
       const int weightValue = std::stoi(option.value);
       sensor->setFilterWeight(weightValue);
     } },
+  { "root.sensors.potentiometer.mode",
+    [](MidiSensor *sensor, SelectedOption &option) {
+      const std::string mode = option.value;
+      sensor->setMidiMessage(mode);
+    } },
   { "root.config.heap", [](MidiSensor *sensor, SelectedOption &option) { Utils::printHeapInfo(500); } },
 };
 
