@@ -25,7 +25,7 @@ static std::map<uint8_t, uint8_t> imuFilterResolution = {
 
 uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
-    { "potentiometer", 5 },
+    { "potentiometer", 30 },
   };
   return debounceThresholdValues[type];
 }
@@ -257,7 +257,7 @@ int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
       [this, actualValue]() -> int16_t {
         return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
       } },
-    { "toggle", [this, actualValue]() -> int16_t { return constrain(map(actualValue, 100, 900, 0, 127), 0, 127); } }
+    { "toggle", [this, actualValue]() -> int16_t { return actualValue >= this->floorThreshold ? 127 : 0; } }
   };
 
   const auto it = midiMap.find(this->midiMessage);
@@ -269,15 +269,13 @@ int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
 }
 
 void MidiSensor::debounce() {
-  if (sensorType == "potentiometer" && this->midiMessage == "toggle") {
-    this->currentDebounceValue = millis();
-    this->previousToggleStatus = this->toggleStatus;
-    if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
-      this->currentRawValue = this->getCurrentRawValue();
-      const int16_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
-      this->toggleStatus = !!sensorMappedValue ? true : false;
-      this->previousDebounceValue = this->currentDebounceValue;
-    }
+  this->currentDebounceValue = millis();
+  this->previousToggleStatus = this->toggleStatus;
+  if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
+    this->currentRawValue = this->getCurrentRawValue();
+    const int16_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
+    this->toggleStatus = !!sensorMappedValue;
+    this->previousDebounceValue = this->currentDebounceValue;
   }
 }
 
@@ -301,27 +299,7 @@ void MidiSensor::writeContinousMessages() {
 }
 
 void MidiSensor::sendMidiMessage() {
-  if (midiCommunicationType == "serial") {
-    if (this->currentValue != this->previousValue) {
-      if (this->midiMessage == "controlChange") {
-        if (this->writeContinousValues) {
-          this->writeContinousMessages();
-        } else {
-          SerialCommunicationClient::writeSerialMidiMessage(this->controllerNumber, this->currentValue, this->statusCode,
-                                                            midiBus);
-        };
-      }
-    }
-
-    if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
-      if (this->toggleStatus) {
-        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 144, midiBus);
-      } else {
-        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 128, midiBus);
-      }
-    }
-  } else if (midiCommunicationType == "ble") {
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
+  if (midiCommunicationType == "ble") {
     // Will block the normal menu workflow (for now)
     const bool debug = false;
     const std::string rawValue = "Raw: " + std::to_string(this->currentRawValue);
@@ -346,18 +324,19 @@ void MidiSensor::sendMidiMessage() {
         }
         BLEMidiServer.pitchBend(0, lsb, msb);
       }
-      if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
-        if (this->toggleStatus) {
-          BLEMidiServer.noteOn(0, 60, 127);
-        } else {
-          BLEMidiServer.noteOff(0, 60, 127);
-        }
-      }
-      if (debug) {
-        display.renderMultilineText({}, valuesToPrint);
+    }
+
+    if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
+      if (this->toggleStatus) {
+        BLEMidiServer.noteOn(0, 60, 127);
+      } else {
+        BLEMidiServer.noteOff(0, 60, 127);
       }
     }
-#endif
+
+    if (debug) {
+      display.renderMultilineText({}, valuesToPrint);
+    }
   } else {
     const std::string message = "Communication type \"" + midiCommunicationType + "\" is not yet supported.";
     Serial.println(message.c_str());
@@ -386,7 +365,9 @@ void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
   const int16_t sensorMappedValue = this->getMappedMidiValue(averageValue);
   this->setPreviousValue(this->currentValue);
   this->setCurrentValue(sensorMappedValue);
-  this->debounce();
+  if (sensorType == "potentiometer" && this->midiMessage == "toggle") {
+    this->debounce();
+  }
 }
 
 void MidiSensor::runFilterLogic() {
