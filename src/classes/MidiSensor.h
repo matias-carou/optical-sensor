@@ -8,10 +8,13 @@
 #include <vector>
 
 #include "Adafruit_VL53L0X.h"
-#include "Config.h"
+#include "configs/Config.h"
+#include "DisplayManager.h"
 #include "MPU6050.h"
 #include "Utils.h"
 #include "Wire.h"
+
+extern DisplayManager &display;
 
 struct SensorConfig {
   std::string sensorType;
@@ -61,8 +64,6 @@ class MidiSensor {
   int16_t ceilThreshold;
   uint16_t getDebounceThreshold(std::string &type);
   std::map<std::string, std::function<int16_t()>> getMeasureMethods();
-  uint8_t msb = 0;
-  uint8_t lsb = 0;
   uint8_t counter = 0;
 
  public:
@@ -81,21 +82,21 @@ class MidiSensor {
   MidiSensor(const SensorConfig &config);
   uint8_t statusCode;
   uint8_t controllerNumber;
-  uint8_t currentValue;
+  uint16_t currentValue;
   std::string sensorType;
   std::string midiMessage;
   uint8_t filteredExponentialValue;
   uint8_t pin;
   uint8_t intPin;
-  uint8_t previousValue;
+  uint16_t previousValue;
   int16_t currentRawValue;
   int16_t filteredValue;
   float averageValue;
   bool isSwitchActive();
   bool isAboveThreshold();
   bool isSwitchDebounced();
-  int getMappedMidiValue(int16_t actualValue);
-  int16_t getCurrentValue();
+  int16_t getMappedMidiValue(int16_t actualValue);
+  int16_t getCurrentRawValue();
   int16_t runNonBlockingAverageFilter();
   int16_t runExponentialFilter(const float alpha = 0.5f);
   int16_t runLowPassFilter();
@@ -104,9 +105,12 @@ class MidiSensor {
   bool isSibling(const std::vector<std::string> &SIBLINGS);
   std::vector<uint8_t> getValuesBetweenRanges(uint8_t gap = 1);
   void setCurrentDebounceValue(unsigned long timeValue);
-  void setCurrentValue(uint8_t value);
-  void setPreviousValue(uint8_t value);
+  void setCurrentValue(uint16_t value);
+  void setPreviousValue(uint16_t value);
   void setMeasuresCounter(uint8_t value);
+  void setFilterWeight(int value);
+  void setFloor(int value);
+  void setCeil(int value);
   void setDataBuffer(int16_t value);
   void setThreshold(uint8_t value);
   void setThresholdBasedOnActiveSiblings(const uint8_t &amountOfActiveSiblings);
@@ -116,6 +120,7 @@ class MidiSensor {
   void run();
   void writeContinousMessages();
   std::string getSensorType();
+  void setSensorType(std::string value);
 
   static void setUpSensorPins(std::vector<MidiSensor *> SENSORS) {
     for (MidiSensor *SENSOR : SENSORS) {
@@ -153,8 +158,21 @@ class MidiSensor {
     return ports;
   }
 
+  static std::vector<MidiSensor *> getSensorsByDependency(const std::vector<MidiSensor *> &sensors, TDependency &dependencies) {
+    std::vector<MidiSensor *> filteredSensors;
+    for (MidiSensor *sensor : sensors) {
+      const std::string sensorType = sensor->getSensorType();
+      if (std::find(dependencies.begin(), dependencies.end(), sensorType) != dependencies.end()) {
+        filteredSensors.push_back(sensor);
+      }
+    }
+
+    return filteredSensors;
+  }
+
   static std::vector<MidiSensor *> initializeSensors() {
-    Serial.println(F("|| Setting up sensors..."));
+    Serial.println(F("Initializing..."));
+    display.showText("| Initializing |");
 
     JsonDocument doc;
 
@@ -170,6 +188,7 @@ class MidiSensor {
 
     if (error) {
       Serial.println("|| Failed to parse the JSON config...");
+      display.showText("| JSON Failed |");
       while (true);
     }
 
@@ -242,6 +261,7 @@ class MidiSensor {
 
         if (!infraredSensor->begin(0x29, false, &Wire)) {
           Serial.println(F("|| Failed to boot VL53L0X"));
+          display.showText("| TOF Failed |");
         } else {
           Serial.println(F("|| Successfully connected to VL53L0X!"));
         }
@@ -257,6 +277,7 @@ class MidiSensor {
           Serial.println(F("|| Successfully connected to IMU!"));
         } else {
           Serial.println(F("|| There was a problem with the IMU initialization"));
+          display.showText("| IMU Failed |");
         }
       }
 

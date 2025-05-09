@@ -19,26 +19,12 @@ const char *ESP32_CONFIG = R"(
     },
     {
       "sensorType": "potentiometer",
-      "messageType": "controlChange",
-      "controllerNumber": 110,
-      "statusCode": 176,
-      "inputPin": 4,
-      "intPin": 0,
-      "floorThreshold": 50,
-      "ceilThreshold": 1000,
-      "filter": {
-        "type": "lowPass",
-        "weight": 3
-      }
-    },
-    {
-      "sensorType": "potentiometer",
       "messageType": "pitchBend",
       "controllerNumber": 111,
       "statusCode": 176,
       "inputPin": 1,
       "intPin": 0,
-      "floorThreshold": 50,
+      "floorThreshold": 200,
       "ceilThreshold": 950,
       "filter": {
         "type": "lowPass",
@@ -51,7 +37,7 @@ const char *ESP32_CONFIG = R"(
       "controllerNumber": 112,
       "statusCode": 176,
       "inputPin": 0,
-      "intPin": 8,
+      "intPin": 10,
       "floorThreshold": 400,
       "ceilThreshold": 15500,
       "filter": {
@@ -79,7 +65,7 @@ const char *ESP32_CONFIG = R"(
       "controllerNumber": 114,
       "statusCode": 176,
       "inputPin": 0,
-      "intPin": 10,
+      "intPin": 8,
       "floorThreshold": 50,
       "ceilThreshold": 325,
       "filter": {

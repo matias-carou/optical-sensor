@@ -25,7 +25,7 @@ static std::map<uint8_t, uint8_t> imuFilterResolution = {
 
 uint16_t MidiSensor::getDebounceThreshold(std::string &type) {
   static std::map<std::string, int> debounceThresholdValues = {
-    { "force", 30 },
+    { "potentiometer", 30 },
   };
   return debounceThresholdValues[type];
 }
@@ -81,7 +81,7 @@ std::map<std::string, std::function<int16_t()>> MidiSensor::getMeasureMethods() 
 
     return 0;
   };
-  measureMethods["infrared"] = [this]() {
+  measureMethods["infrared"] = [this]() -> int16_t {
     if (!!this->infraredSensor) {
       VL53L0X_RangingMeasurementData_t measure;
 
@@ -136,15 +136,13 @@ MidiSensor::MidiSensor(const SensorConfig &config) {
   previousSwitchState = false;
   isDebounced = false;
   counter = 0;
-  msb = 0;
-  lsb = 0;
 }
 
 bool MidiSensor::isAboveThreshold() {
   return this->measuresCounter % this->filterWeight == 0;
 };
 
-void MidiSensor::setCurrentValue(uint8_t value) {
+void MidiSensor::setCurrentValue(uint16_t value) {
   this->currentValue = value;
 }
 
@@ -162,7 +160,7 @@ void MidiSensor::setMidiMessage(std::string value) {
   this->midiMessage = value;
 }
 
-void MidiSensor::setPreviousValue(uint8_t value) {
+void MidiSensor::setPreviousValue(uint16_t value) {
   this->previousValue = value;
 }
 
@@ -180,6 +178,10 @@ void MidiSensor::setDataBuffer(int16_t value) {
 
 std::string MidiSensor::getSensorType() {
   return this->sensorType;
+}
+
+void MidiSensor::setSensorType(std::string value) {
+  this->sensorType = value;
 }
 
 bool MidiSensor::isSwitchActive() {
@@ -209,7 +211,7 @@ bool MidiSensor::isSwitchDebounced() {
   return true;
 }
 
-int16_t MidiSensor::getCurrentValue() {
+int16_t MidiSensor::getCurrentRawValue() {
   const auto it = this->measureMethods.find(this->sensorType);
   const auto hasMatchingFunction = it != this->measureMethods.end();
 
@@ -217,8 +219,8 @@ int16_t MidiSensor::getCurrentValue() {
     return it->second();
   }
 
-  const std::string message = "|| Can't get the raw value for the sensor type \"" + this->sensorType + "\"";
-  Serial.println(message.c_str());
+  const std::string message = "Sensor Type: " + this->sensorType;
+  display.renderMultilineText({ "Can't get raw" }, { message.c_str() });
 
   return 0;
 }
@@ -245,27 +247,35 @@ std::vector<uint8_t> MidiSensor::getValuesBetweenRanges(uint8_t gap) {
   return steps;
 }
 
-int MidiSensor::getMappedMidiValue(int16_t actualValue) {
-  if (this->midiMessage == "pitchBend") {
-    const int pitchBendValue = constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
-    int shiftedValue = pitchBendValue << 1;
-    this->msb = highByte(shiftedValue);
-    this->lsb = lowByte(shiftedValue) >> 1;
-    return pitchBendValue;
+int16_t MidiSensor::getMappedMidiValue(int16_t actualValue) {
+  const std::map<std::string, std::function<int16_t()>> midiMap = {
+    { "pitchBend",
+      [this, actualValue]() -> int16_t {
+        return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 8191, 16383), 8191, 16383);
+      } },
+    { "controlChange",
+      [this, actualValue]() -> int16_t {
+        return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
+      } },
+    { "toggle", [this, actualValue]() -> int16_t { return actualValue >= this->floorThreshold ? 127 : 0; } }
+  };
+
+  const auto it = midiMap.find(this->midiMessage);
+  if (it != midiMap.end()) {
+    return it->second();
   }
 
-  return constrain(map(actualValue, this->floorThreshold, this->ceilThreshold, 0, 127), 0, 127);
+  return 0;
 }
 
 void MidiSensor::debounce() {
-  if (sensorType == "force") {
-    this->previousToggleStatus = this->toggleStatus;
-    if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
-      this->currentRawValue = this->getCurrentValue();
-      const uint8_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
-      this->toggleStatus = !!sensorMappedValue ? true : false;
-      this->previousDebounceValue = this->currentDebounceValue;
-    }
+  this->currentDebounceValue = millis();
+  this->previousToggleStatus = this->toggleStatus;
+  if (this->currentDebounceValue - this->previousDebounceValue >= debounceThreshold) {
+    this->currentRawValue = this->getCurrentRawValue();
+    const int16_t sensorMappedValue = this->getMappedMidiValue(this->currentRawValue);
+    this->toggleStatus = !!sensorMappedValue;
+    this->previousDebounceValue = this->currentDebounceValue;
   }
 }
 
@@ -289,36 +299,44 @@ void MidiSensor::writeContinousMessages() {
 }
 
 void MidiSensor::sendMidiMessage() {
-  if (midiCommunicationType == "serial") {
-    if (this->currentValue != this->previousValue) {
-      if (this->midiMessage == "controlChange") {
-        if (this->writeContinousValues) {
-          this->writeContinousMessages();
-        } else {
-          SerialCommunicationClient::writeSerialMidiMessage(this->controllerNumber, this->currentValue, this->statusCode,
-                                                            midiBus);
-        };
-      }
-    }
+  if (midiCommunicationType == "ble") {
+    // Will block the normal menu workflow (for now)
+    const bool debug = false;
+    const std::string rawValue = "Raw: " + std::to_string(this->currentRawValue);
+    const std::string currentValue = "Current: " + std::to_string(this->currentValue);
+    const std::string previousValue = "Previous: " + std::to_string(this->previousValue);
+    std::vector<const char *> valuesToPrint = { rawValue.c_str(), currentValue.c_str(), previousValue.c_str() };
 
-    if (this->midiMessage == "gate" && this->toggleStatus != this->previousToggleStatus) {
-      if (this->toggleStatus) {
-        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 144, midiBus);
-      } else {
-        SerialCommunicationClient::writeSerialMidiMessage(60, 127, 128, midiBus);
-      }
-    }
-  } else if (midiCommunicationType == "ble") {
-#if MICROCONTROLLER == MICROCONTROLLER_ESP32
     if (this->currentValue != this->previousValue) {
       if (this->midiMessage == "controlChange") {
         BLEMidiServer.controlChange(0, this->controllerNumber, this->currentValue);
       }
       if (this->midiMessage == "pitchBend") {
-        BLEMidiServer.pitchBend(0, this->lsb, this->msb);
+        const int16_t shiftedValue = this->currentValue << 1;
+        const uint8_t msb = highByte(shiftedValue);
+        const uint8_t lsb = lowByte(shiftedValue) >> 1;
+
+        if (debug) {
+          const std::string lsbPrint = "LSB: " + std::to_string(lsb);
+          const std::string msbPrint = "MSB: " + std::to_string(msb);
+          std::vector<const char *> newValues = { lsbPrint.c_str(), msbPrint.c_str() };
+          valuesToPrint.insert(valuesToPrint.end(), newValues.begin(), newValues.end());
+        }
+        BLEMidiServer.pitchBend(0, lsb, msb);
       }
     }
-#endif
+
+    if (this->midiMessage == "toggle" && this->toggleStatus != this->previousToggleStatus) {
+      if (this->toggleStatus) {
+        BLEMidiServer.noteOn(0, 60, 127);
+      } else {
+        BLEMidiServer.noteOff(0, 60, 127);
+      }
+    }
+
+    if (debug) {
+      display.renderMultilineText({}, valuesToPrint);
+    }
   } else {
     const std::string message = "Communication type \"" + midiCommunicationType + "\" is not yet supported.";
     Serial.println(message.c_str());
@@ -335,15 +353,21 @@ int16_t MidiSensor::runExponentialFilter(float alpha) {
 }
 
 int16_t MidiSensor::runLowPassFilter() {
-  this->averageValue += (this->currentRawValue - this->averageValue) / this->filterWeight;
-  return static_cast<int16_t>(std::round(this->averageValue));
+  if (filterWeight == 1) {
+    return currentRawValue;
+  }
+  const float alpha = 1.0f / filterWeight;  // Smoothing factor
+  averageValue = (alpha * currentRawValue) + ((1.0f - alpha) * averageValue);
+  return static_cast<int16_t>(std::round(averageValue));
 }
 
 void MidiSensor::runCommonFilterLogic(const int16_t averageValue) {
-  const uint8_t sensorMappedValue = this->getMappedMidiValue(averageValue);
+  const int16_t sensorMappedValue = this->getMappedMidiValue(averageValue);
   this->setPreviousValue(this->currentValue);
   this->setCurrentValue(sensorMappedValue);
-  this->debounce();
+  if (sensorType == "potentiometer" && this->midiMessage == "toggle") {
+    this->debounce();
+  }
 }
 
 void MidiSensor::runFilterLogic() {
@@ -381,9 +405,20 @@ void MidiSensor::runFilterLogic() {
   filterFunctionToRun->second();
 }
 
+void MidiSensor::setFilterWeight(int value) {
+  this->filterWeight = value;
+}
+
+void MidiSensor::setFloor(int value) {
+  this->floorThreshold = value;
+}
+
+void MidiSensor::setCeil(int value) {
+  this->ceilThreshold = value;
+}
+
 void MidiSensor::run() {
-  this->currentRawValue = this->getCurrentValue();
-  this->setCurrentDebounceValue(millis());
+  this->currentRawValue = this->getCurrentRawValue();
   this->runFilterLogic();
   this->sendMidiMessage();
 }
